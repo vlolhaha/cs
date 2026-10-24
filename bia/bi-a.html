@@ -1,0 +1,1107 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#07110c">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Bi-a 8 Bi</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{--vh:100vh;--pad:8px;--gap:8px;--side:70px;--right:104px;--aimH:38px}
+@supports (height:100dvh){:root{--vh:100dvh}}
+html,body{margin:0;height:100%;background:radial-gradient(ellipse at 50% 0%,#1b3a2c 0%,#0b1812 55%,#050a07 100%);color:#f3ead2;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow:hidden;-webkit-user-select:none;user-select:none;touch-action:none;overscroll-behavior:none}
+#app{--bw:min(calc((var(--vh) - 2*var(--pad) - var(--aimH) - 6px)*1.6667),calc(100vw - 2*var(--pad) - var(--side) - var(--right) - 2*var(--gap)));position:fixed;inset:0;height:var(--vh);display:flex;align-items:stretch;justify-content:center;gap:var(--gap);padding:var(--pad);padding-left:max(var(--pad),env(safe-area-inset-left));padding-right:max(var(--pad),env(safe-area-inset-right))}
+button{font:inherit;color:#1d1204;background:linear-gradient(#f5d27a,#d79a2e);border:0;border-radius:10px;padding:8px 12px;font-weight:600;cursor:pointer;box-shadow:0 3px 0 #7d520f,0 6px 12px rgba(0,0,0,.35);touch-action:manipulation}
+button:active{transform:translateY(2px);box-shadow:0 1px 0 #7d520f}
+button.ghost{background:rgba(255,255,255,.08);color:#f3ead2;box-shadow:inset 0 0 0 1px rgba(255,255,255,.22)}
+button.big{padding:12px;font-size:16px;width:100%}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #f5d27a;outline-offset:2px}
+.lbl2{font-size:11px;letter-spacing:1.5px;color:#e9bd5c;font-weight:700;text-align:center}
+
+/* left: power */
+#left{flex:none;width:var(--side);display:flex;flex-direction:column;align-items:center;gap:6px}
+#powTrack{--f:0;position:relative;flex:1;min-height:120px;width:46px;border-radius:14px;background:rgba(0,0,0,.55);box-shadow:inset 0 0 0 1px rgba(255,255,255,.2);touch-action:none;cursor:ns-resize}
+#powFill{position:absolute;left:0;right:0;top:0;height:calc(var(--f)*(100% - 30px) + 15px);border-radius:14px;background:linear-gradient(180deg,#4ade80,#facc15 55%,#ef4444);opacity:.9;pointer-events:none}
+#powKnob{position:absolute;left:-5px;right:-5px;top:calc(var(--f)*(100% - 30px));height:30px;border-radius:10px;background:linear-gradient(#fff3cf,#d79a2e);box-shadow:0 3px 8px rgba(0,0,0,.6),inset 0 -2px 0 #7d520f;pointer-events:none;display:flex;align-items:center;justify-content:center;color:#5b3a07;font-size:14px;font-weight:800}
+#powArrows{position:absolute;inset:36px 0 8px 0;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.22);font-size:20px;pointer-events:none;writing-mode:vertical-rl;letter-spacing:6px}
+#powPct{font-size:17px;font-weight:700;font-family:Georgia,serif}
+#powHint{font-size:10px;opacity:.7;text-align:center;line-height:1.2}
+
+/* middle: board + fine aim bar */
+#mid{flex:none;width:var(--bw);align-self:center;display:flex;flex-direction:column;gap:6px}
+#board{position:relative;width:100%;aspect-ratio:1000/600;--u:.6px}
+canvas#cv{display:block;width:100%;height:100%;border-radius:12px;touch-action:none}
+#hud{position:absolute;left:5%;right:5%;top:0;height:6.6%;display:flex;justify-content:space-between;align-items:center;pointer-events:none;font-size:max(9px,calc(var(--u)*17))}
+.chip{padding:0 .9em;line-height:1.75;border-radius:99px;background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.2);white-space:nowrap;transition:background .2s,border-color .2s}
+.chip.on{background:rgba(233,189,92,.3);border-color:#e9bd5c}
+#status{position:absolute;left:5%;right:5%;bottom:0;height:6.6%;display:flex;align-items:center;justify-content:center;pointer-events:none;font-size:max(9px,calc(var(--u)*17));white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.9}
+#toast{position:absolute;left:50%;top:44%;transform:translate(-50%,-50%);max-width:78%;padding:.6em 1em;border-radius:12px;background:rgba(0,0,0,.78);border:1px solid rgba(233,189,92,.5);text-align:center;font-size:max(12px,calc(var(--u)*24));line-height:1.4;pointer-events:none}
+.overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(3,8,6,.62);border-radius:12px}
+.hidden{display:none!important}
+.card{background:linear-gradient(160deg,rgba(24,44,34,.98),rgba(10,20,15,.98));border:1px solid rgba(233,189,92,.4);border-radius:16px;padding:14px 18px;width:min(88%,380px);display:flex;flex-direction:column;gap:8px;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,.65);max-height:94%;overflow:auto;touch-action:pan-y}
+.card.wide{width:min(94%,430px);text-align:left}
+.card h2{margin:0;color:#e9bd5c;text-align:center;font-family:Georgia,serif;letter-spacing:1px;font-size:20px}
+.hint{font-size:12px;opacity:.78;margin:0;text-align:center;line-height:1.55}
+.set-row{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:13px}
+.set-row input[type=range]{width:46%;accent-color:#e9bd5c}
+.set-row input[type=checkbox]{width:20px;height:20px;accent-color:#e9bd5c}
+.set-row select{background:#10231a;color:#f3ead2;border:1px solid rgba(233,189,92,.4);border-radius:8px;padding:5px 8px;font:inherit}
+.val{display:inline-block;min-width:28px;text-align:right;opacity:.85}
+
+/* fine aim bar (thanh can) */
+#aimBar{height:var(--aimH);display:flex;align-items:center;gap:6px}
+#aimBar button{width:40px;height:var(--aimH);padding:0;font-size:16px;border-radius:12px}
+#aimTrack{position:relative;flex:1;height:var(--aimH);border-radius:99px;background:rgba(0,0,0,.55);box-shadow:inset 0 0 0 1px rgba(255,255,255,.2);touch-action:none;cursor:ew-resize}
+#aimTrack::before{content:"";position:absolute;left:50%;top:6px;bottom:6px;width:2px;background:rgba(233,189,92,.5);transform:translateX(-50%)}
+#aimTrack .tick{position:absolute;top:50%;width:1px;height:10px;background:rgba(255,255,255,.18);transform:translateY(-50%)}
+#aimLbl{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:11px;letter-spacing:2px;color:rgba(255,255,255,.4);pointer-events:none;margin-top:0;white-space:nowrap}
+#aimThumb{position:absolute;top:3px;left:50%;width:46px;height:calc(var(--aimH) - 6px);margin-left:-23px;border-radius:99px;background:linear-gradient(#fff3cf,#d79a2e);box-shadow:0 2px 6px rgba(0,0,0,.6),inset 0 -2px 0 #7d520f;pointer-events:none}
+
+/* right */
+#right{flex:none;width:var(--right);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px}
+#modeLabel{font-size:11px;padding:3px 9px;border-radius:99px;background:rgba(255,255,255,.07);border:1px solid rgba(233,189,92,.35);text-align:center;line-height:1.3}
+#tipCv{width:min(88px,22vh);height:min(88px,22vh);border-radius:50%;touch-action:none;cursor:crosshair}
+.icons{display:grid;grid-template-columns:1fr 1fr;gap:6px;width:100%}
+.icons button{padding:8px 0;font-size:17px;line-height:1}
+#tipReset{padding:5px 10px;font-size:11px}
+
+#rotate{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:#07110c;z-index:99;text-align:center;padding:24px;font-size:17px;line-height:1.6}
+@media (orientation:portrait) and (max-width:900px){#rotate{display:flex}}
+@media (max-height:340px){:root{--right:92px;--side:62px;--aimH:34px}.icons button{padding:6px 0}}
+
+:root{--aimH:0px;--right:60px}
+#hudBtns{display:flex;flex-direction:column;gap:8px;align-items:center}
+.rbtn{width:40px;height:40px;padding:0;border-radius:50%;font-size:20px;line-height:1;display:flex;align-items:center;justify-content:center}
+#spinBtn{position:relative;background:radial-gradient(circle at 35% 30%,#fff,#d8d5c4 70%,#8e8a78);box-shadow:0 3px 8px rgba(0,0,0,.5),inset 0 0 0 2px rgba(233,189,92,.9)}
+#spinDot{position:absolute;left:50%;top:50%;width:10px;height:10px;margin:-5px 0 0 -5px;border-radius:50%;background:#e11d2e;box-shadow:0 0 0 1.5px #fff}
+#right{flex:none;width:var(--right);display:flex;flex-direction:column;align-items:center;gap:6px}
+#right button{width:42px;height:42px;padding:0;border-radius:12px;font-size:15px}
+#aimTrack{position:relative;flex:1;width:46px;height:auto;min-height:100px;border-radius:99px}
+#aimTrack::before{left:6px;right:6px;top:50%;bottom:auto;width:auto;height:2px;transform:translateY(-50%)}
+#aimLbl{writing-mode:vertical-rl;top:18%}
+#aimThumb{top:50%;left:3px;right:3px;width:auto;height:46px;margin:-23px 0 0 0}
+.chip{display:flex;align-items:center;gap:.3em;max-width:38%;overflow:hidden}
+.bi{display:inline-block;width:1.55em;height:1.55em;line-height:1.55em;border-radius:50%;font-style:normal;font-size:.85em;text-align:center;color:#fff;text-shadow:0 0 2px #000;font-weight:700;background:var(--c);box-shadow:inset -1px -1px 2px rgba(0,0,0,.45)}
+.bi.st{background:linear-gradient(#fff 22%,var(--c) 22% 78%,#fff 78%);color:#111;text-shadow:none}
+#clock{position:absolute;left:50%;transform:translateX(-50%);font-weight:700;font-variant-numeric:tabular-nums;padding:0 .8em;border-radius:99px;background:rgba(0,0,0,.5);line-height:1.75}
+#clock:empty{display:none}
+#clock.warn{background:#b91c1c;animation:bl .5s infinite alternate}
+@keyframes bl{to{opacity:.55}}
+#spinPanel #tipCv{width:min(190px,46vh);height:min(190px,46vh)}
+@media (max-height:420px){#spinPanel .hint{display:none}}
+</style>
+</head>
+<body>
+<div id="rotate">Xoay ngang điện thoại để chơi bi-a<br><small style="opacity:.6">Nếu không xoay được, bật xoay màn hình tự động</small></div>
+
+<div id="app">
+  <div id="left">
+    <div id="hudBtns"><button class="ghost rbtn" id="gearBtn" aria-label="Menu">⚙</button><button class="rbtn" id="spinBtn" aria-label="Điểm đánh bi trắng"><span id="spinDot"></span></button></div>
+    <span class="lbl2">LỰC</span>
+    <div id="powTrack"><div id="powFill"></div><div id="powArrows">▼ ▼ ▼</div><div id="powKnob">≡</div></div>
+    <span id="powPct">0%</span>
+    <span id="powHint">kéo xuống<br>thả để đánh</span>
+  </div>
+
+  <div id="mid">
+    <div id="board">
+      <canvas id="cv"></canvas>
+      <div id="hud"><div class="chip" id="pl0"></div><div id="clock"></div><div class="chip" id="pl1"></div></div>
+      <div id="status"></div>
+      <div id="toast" class="hidden"></div>
+
+      <div id="gearMenu" class="overlay hidden"><div class="card"><h2>Menu</h2><span id="modeLabel" class="hint"></span><button class="big" id="gearClose">Tiếp tục</button><button class="big ghost" id="btnSet">Cài đặt</button><button class="big ghost" id="btnRestart">Ván mới</button><button class="big ghost" id="btnMenu">Về menu chính</button><button class="big ghost" id="btnFs">Toàn màn hình</button></div></div>
+      <div id="lvl" class="overlay hidden"><div class="card"><h2>Chọn độ khó máy</h2><button class="big" data-lvl="easy">Dễ</button><button class="big" data-lvl="normal">Vừa</button><button class="big" data-lvl="hard">Khó</button><button class="big" data-lvl="champ">🏆 Vô địch</button><button class="big ghost" id="lvlBack">Quay lại</button></div></div>
+      <div id="spinPanel" class="overlay hidden"><div class="card"><h2>Điểm đánh bi trắng</h2><canvas id="tipCv" width="120" height="120" style="align-self:center"></canvas><p class="hint">Chạm hoặc kéo chấm đỏ. Giữa = đánh thẳng, trên/dưới = tâm trên/dưới, trái/phải = xoáy bên.</p><div style="display:flex;gap:8px"><button class="ghost" id="tipReset" style="flex:1">Đánh giữa</button><button id="spinDone" style="flex:1">Xong</button></div></div></div>
+      <div id="menu" class="overlay">
+        <div class="card">
+          <h2>Bi-a 8 bi</h2>
+          <button class="big" data-mode="pvp">Người vs Người</button>
+          <button class="big" data-mode="bot">Người vs Máy</button>
+          <button class="big ghost" id="menuSet">Cài đặt</button>
+          <p class="hint">Chạm vào bàn hoặc vào một bi để cơ quay về hướng đó, kéo trên bàn để xoay tiếp. Thanh CĂN bên phải chỉnh góc thật nhỏ. Kéo thanh LỰC bên trái xuống rồi thả để đánh. Bi nhỏ ở góc trái để chỉnh điểm đánh. Mỗi lượt có 30 giây, quá giờ sẽ bị phạt.</p>
+        </div>
+      </div>
+
+      <div id="over" class="overlay hidden">
+        <div class="card">
+          <h2 id="overTitle"></h2>
+          <p id="overText" class="hint" style="font-size:14px"></p>
+          <button class="big" id="btnAgain">Chơi lại</button>
+          <button class="big ghost" id="btnToMenu">Về menu</button>
+        </div>
+      </div>
+
+      <div id="setPanel" class="overlay hidden">
+        <div class="card wide">
+          <h2>Cài đặt</h2>
+          <div class="set-row"><span>Độ nhạy lực</span><span><input type="range" id="setSens" min="0.5" max="2" step="0.1" value="1"> <span class="val" id="vSens">1.0</span></span></div>
+          <div class="set-row"><span>Độ nhạy xoay cơ</span><span><input type="range" id="setAim" min="0.3" max="2" step="0.1" value="1"> <span class="val" id="vAim">1.0</span></span></div>
+          <div class="set-row"><span>Ma sát lăn</span><span><input type="range" id="setFric" min="1" max="10" step="1" value="5"> <span class="val" id="vFric">5</span></span></div>
+          <div class="set-row"><span>Bóng đổ</span><input type="checkbox" id="setShadow" checked></div>
+          <div class="set-row"><span>Đường ngắm</span><input type="checkbox" id="setGuide" checked></div>
+          <div class="set-row"><span>Âm thanh</span><input type="checkbox" id="setSound" checked></div>
+          <div class="set-row"><span>Độ khó máy</span>
+            <select id="setLevel"><option value="easy">Dễ</option><option value="normal" selected>Vừa</option><option value="hard">Khó</option><option value="champ">Vô địch</option></select>
+          </div>
+          <button class="big" id="setClose">Xong</button>
+        </div>
+      </div>
+    </div>
+
+    </div>
+
+  <div id="right">
+    <button class="ghost" id="aimL" aria-label="Xoay ngược chiều kim đồng hồ">▲</button>
+    <div id="aimTrack"><span id="aimLbl">CĂN</span><div id="aimThumb"></div></div>
+    <button class="ghost" id="aimR" aria-label="Xoay thuận chiều kim đồng hồ">▼</button>
+  </div>
+</div>
+
+<script>
+(() => {
+"use strict";
+
+/* ============ CONSTANTS ============ */
+const W = 1000, H = 600, R = 12, PR = 26;
+const FELT = { x0: 100, y0: 100, x1: 900, y1: 500 };
+const POCKETS = [
+  { x: 100, y: 100 }, { x: 500, y: 93 }, { x: 900, y: 100 },
+  { x: 100, y: 500 }, { x: 500, y: 507 }, { x: 900, y: 500 }
+];
+const COLORS = { 1:"#f5c518", 2:"#1d4ed8", 3:"#dc2626", 4:"#6d28d9", 5:"#ea580c", 6:"#15803d", 7:"#7f1d1d", 8:"#111111",
+                 9:"#f5c518", 10:"#1d4ed8", 11:"#dc2626", 12:"#6d28d9", 13:"#ea580c", 14:"#15803d", 15:"#7f1d1d" };
+const MAX_SPEED = 1750, STOP_V = 6, CUSHION_E = 0.78;
+const BOT_SCALE = 1150 / 1750;   // bot power was tuned for the old top speed
+const RACK_ORDER = [1,9,2,10,8,3,11,4,12,5,13,6,14,7,15];
+const PULL_FULL = 150;
+const A_SLIDE = 600, K_SPIN = 1.2, BALL_MU = 0.12;
+const SPR = 36;
+const CA = 0.82, SIN_CA = Math.sqrt(1 - CA * CA);
+const LIGHT = (() => { const v = [-0.45, -0.55, 0.7], l = Math.hypot(...v); return v.map(x => x / l); })();
+const HALFV = (() => { const v = [LIGHT[0], LIGHT[1], LIGHT[2] + 1], l = Math.hypot(...v); return v.map(x => x / l); })();
+const FINE_RANGE = 0.12;
+
+const S = { sens: 1, aimSens: 1, friction: 0.987, shadows: true, guide: true, sound: true, level: "normal", offX: 0, offY: 0 };
+const kRoll = () => -Math.log(S.friction) * 60;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+/* ============ DOM ============ */
+const $ = id => document.getElementById(id);
+const cv = $("cv");
+let ctx = cv.getContext("2d");
+let CS = 1, tableCache = null;
+
+function resize() {
+  const bw = $("board").clientWidth; if (!bw) return;
+  const sc = Math.min(window.devicePixelRatio || 1, 2);      // cap resolution so Android phones stay smooth
+  const pw = Math.round(bw * sc);
+  if (cv.width !== pw) { cv.width = pw; cv.height = Math.round(pw * H / W); tableCache = null; }
+  CS = cv.width / W;
+  $("board").style.setProperty("--u", (bw / 1000) + "px");
+}
+if (window.ResizeObserver) new ResizeObserver(resize).observe($("board"));
+window.addEventListener("resize", resize);
+
+/* ============ STATE ============ */
+let balls = [], players = [], current = 0, mode = "pvp";
+let ballInHand = false, shooting = false, gameOver = false, uiOpen = false;
+let shotInfo = null, aimAng = 0, aimDir = { x: 1, y: 0 }, mouse = { x: 500, y: 300 };
+let pullVis = 0, power = 0, powDrag = false, powFrac = 0;
+let bot = null;
+
+let aimTarget = null, turnT = 30; const TURN_TIME = 30;            // smooth "turn the cue to this angle" animation
+function setAimRaw(a) {
+  aimAng = Math.atan2(Math.sin(a), Math.cos(a));
+  aimDir = { x: Math.cos(aimAng), y: Math.sin(aimAng) };
+}
+function setAim(a) { aimTarget = null; setAimRaw(a); }
+setAim(0);
+
+const cueB = () => balls[0];
+const remainingOf = g => balls.filter(b => b.type === g && b.active).length;
+const labelGroup = g => g === null ? "chưa xác định" : g === "solid" ? "bi trơn 1–7" : "bi sọc 9–15";
+const levelName = () => ({ easy: "Dễ", normal: "Vừa", hard: "Khó", champ: "Vô địch" })[S.level] || "Vừa";
+const identity = () => [1, 0, 0, 0, 1, 0, 0, 0, 1];
+
+/* ============ SOUND ============ */
+let AC = null;
+function resumeAudio() {
+  try { AC = AC || new (window.AudioContext || window.webkitAudioContext)(); if (AC.state === "suspended") AC.resume(); } catch (e) {}
+}
+function clack(v) {
+  if (!S.sound || !AC) return;
+  try {
+    const o = AC.createOscillator(), g = AC.createGain();
+    o.type = "triangle"; o.frequency.value = 700 + Math.random() * 500;
+    g.gain.value = Math.min(0.22, v);
+    g.gain.exponentialRampToValueAtTime(0.001, AC.currentTime + 0.08);
+    o.connect(g).connect(AC.destination);
+    o.start(); o.stop(AC.currentTime + 0.09);
+  } catch (e) {}
+}
+
+/* ============ BALLS ============ */
+function makeBall(n, type, x, y) {
+  return { id: n, type, n, x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0,
+           R: identity(), spr: null, sctx: null, img: null, dirty: true, active: true };
+}
+function rack() {
+  balls = [makeBall(0, "cue", 280, 300)];
+  const d = 2 * R + 0.6, dx = d * Math.sqrt(3) / 2;
+  let idx = 0;
+  for (let r = 0; r < 5; r++) for (let c = 0; c <= r; c++) {
+    const n = RACK_ORDER[idx++];
+    balls.push(makeBall(n, n === 8 ? "eight" : n < 8 ? "solid" : "stripe", 700 + r * dx, 300 + (c - r / 2) * d));
+  }
+}
+
+function show(id, on) { $(id).classList.toggle("hidden", !on); }
+let toastT = 0;
+function setMsg(t, toast = true) {
+  $("status").textContent = t;
+  const el = $("toast");
+  clearTimeout(toastT);
+  if (toast) { el.textContent = t; el.classList.remove("hidden"); toastT = setTimeout(() => el.classList.add("hidden"), 3400); }
+  else el.classList.add("hidden");
+}
+function setModeLabel() { $("modeLabel").textContent = mode === "bot" ? "Vs Máy · " + levelName() : "Người vs Người"; }
+
+function newGame(m) {
+  mode = m; rack();
+  players = m === "bot"
+    ? [{ name: "Bạn", group: null }, { name: "Máy", group: null }]
+    : [{ name: "Người 1", group: null }, { name: "Người 2", group: null }];
+  current = 0; ballInHand = false; shooting = false; gameOver = false;
+  shotInfo = null; pullVis = 0; power = 0; powDrag = false; bot = null;
+  setAim(0); S.offX = 0; S.offY = 0; drawTip(); turnT = TURN_TIME;
+  show("menu", false); show("over", false); show("setPanel", false);
+  setMsg(players[0].name + " phá bi. Kéo bàn để xoay cơ, kéo thanh LỰC xuống rồi thả.");
+  setModeLabel(); updateHUD();
+}
+
+/* ============ SPIN & ROTATION ============ */
+function spinStep(b, h) {
+  const ux = b.vx - R * b.wy, uy = b.vy + R * b.wx, us = Math.hypot(ux, uy);
+  if (us > 3) {
+    const fx = -ux / us, fy = -uy / us, k = 2.5 * A_SLIDE / R * h;
+    b.vx += A_SLIDE * fx * h; b.vy += A_SLIDE * fy * h;
+    b.wx += k * fy; b.wy += -k * fx;
+  } else {
+    const dec = Math.exp(-kRoll() * h);
+    b.vx *= dec; b.vy *= dec;
+    b.wx = -b.vy / R; b.wy = b.vx / R;
+  }
+  b.wz *= Math.exp(-K_SPIN * h);
+  rotate(b, h);
+}
+function mul3(A, B) {
+  const C = new Array(9);
+  for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++)
+    C[i * 3 + j] = A[i * 3] * B[j] + A[i * 3 + 1] * B[3 + j] + A[i * 3 + 2] * B[6 + j];
+  return C;
+}
+function orthonormalize(m) {
+  let a = [m[0], m[1], m[2]], la = Math.hypot(a[0], a[1], a[2]); a = a.map(x => x / la);
+  let bv = [m[3], m[4], m[5]]; const d = bv[0] * a[0] + bv[1] * a[1] + bv[2] * a[2];
+  bv = bv.map((x, i) => x - d * a[i]); const lb = Math.hypot(bv[0], bv[1], bv[2]); bv = bv.map(x => x / lb);
+  const c = [a[1] * bv[2] - a[2] * bv[1], a[2] * bv[0] - a[0] * bv[2], a[0] * bv[1] - a[1] * bv[0]];
+  return [...a, ...bv, ...c];
+}
+function rotate(b, h) {
+  const m = Math.hypot(b.wx, b.wy, b.wz);
+  if (m * h < 1e-9) return;
+  const th = m * h, ax = b.wx / m, ay = b.wy / m, az = b.wz / m;
+  const c = Math.cos(th), s = Math.sin(th), t = 1 - c;
+  b.R = orthonormalize(mul3([
+    c + ax * ax * t, ax * ay * t - az * s, ax * az * t + ay * s,
+    ay * ax * t + az * s, c + ay * ay * t, ay * az * t - ax * s,
+    az * ax * t - ay * s, az * ay * t + ax * s, c + az * az * t
+  ], b.R));
+}
+
+/* ============ PHYSICS ============ */
+function physicsStep(dt) {
+  const SUB = 12, h = dt / SUB, cb = cueB();
+  for (let s = 0; s < SUB; s++) {
+    for (const b of balls) if (b.active) spinStep(b, h);
+    for (const b of balls) if (b.active) { b.x += b.vx * h; b.y += b.vy * h; }
+
+    for (let i = 0; i < balls.length; i++) {
+      const a = balls[i]; if (!a.active) continue;
+      for (let j = i + 1; j < balls.length; j++) {
+        const b = balls[j]; if (!b.active) continue;
+        const dx = b.x - a.x, dy = b.y - a.y, d2 = dx * dx + dy * dy, min = 2 * R;
+        if (d2 < min * min && d2 > 0) {
+          const d = Math.sqrt(d2), nx = dx / d, ny = dy / d, ov = (min - d) / 2;
+          a.x -= nx * ov; a.y -= ny * ov; b.x += nx * ov; b.y += ny * ov;
+          const vn = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
+          if (vn < 0) {
+            a.vx += vn * nx; a.vy += vn * ny; b.vx -= vn * nx; b.vy -= vn * ny;
+            const tx = -ny, ty = nx;
+            const rel = (a.vx - b.vx) * tx + (a.vy - b.vy) * ty + R * (a.wz + b.wz);
+            const Jmax = BALL_MU * -vn;
+            const J = clamp(-rel / 7, -Jmax, Jmax);
+            a.vx += J * tx; a.vy += J * ty; b.vx -= J * tx; b.vy -= J * ty;
+            a.wz += 2.5 * J / R; b.wz += 2.5 * J / R;
+            if (-vn > 60) clack(-vn / 5000);
+          }
+          if (shotInfo && !shotInfo.firstHit && (a === cb || b === cb)) shotInfo.firstHit = a === cb ? b : a;
+        }
+      }
+    }
+
+    for (const b of balls) {
+      if (!b.active) continue;
+      let pocketed = false;
+      for (const p of POCKETS) {
+        if (Math.hypot(b.x - p.x, b.y - p.y) < PR) {
+          b.active = false; b.vx = b.vy = 0; b.wx = b.wy = b.wz = 0; pocketed = true;
+          if (shotInfo) shotInfo.pocketed.push(b);
+          clack(0.12); break;
+        }
+      }
+      if (pocketed) continue;
+      if (b.x < FELT.x0 + R) { b.x = FELT.x0 + R; b.vx = Math.abs(b.vx) * CUSHION_E; cushion(); }
+      if (b.x > FELT.x1 - R) { b.x = FELT.x1 - R; b.vx = -Math.abs(b.vx) * CUSHION_E; cushion(); }
+      if (b.y < FELT.y0 + R) { b.y = FELT.y0 + R; b.vy = Math.abs(b.vy) * CUSHION_E; cushion(); }
+      if (b.y > FELT.y1 - R) { b.y = FELT.y1 - R; b.vy = -Math.abs(b.vy) * CUSHION_E; cushion(); }
+    }
+
+    // A ball is only at rest when BOTH its centre and its contact point are nearly still.
+    // (Checking only the centre froze backspin shots the instant they crossed zero speed.)
+    for (const b of balls) {
+      if (!b.active) continue;
+      if (Math.hypot(b.vx, b.vy) < STOP_V) {
+        const ux = b.vx - R * b.wy, uy = b.vy + R * b.wx;
+        if (Math.hypot(ux, uy) < STOP_V * 1.5) { b.vx = b.vy = 0; b.wx = b.wy = b.wz = 0; }
+      }
+    }
+  }
+}
+function cushion() { if (shotInfo) shotInfo.cushion = true; }
+function anyMoving() { return balls.some(b => b.active && (b.vx || b.vy || b.wx || b.wy || b.wz)); }
+
+function shoot(pw, ox = S.offX, oy = S.offY) {
+  const c = cueB(), sp = MAX_SPEED * pw, d = aimDir;
+  c.vx = d.x * sp; c.vy = d.y * sp;
+  c.wz = -2.5 * ox * sp / R;
+  c.wx = -2.5 * oy * sp * d.y / R;
+  c.wy = 2.5 * oy * sp * d.x / R;
+  shotInfo = { pocketed: [], firstHit: null, cushion: false };
+  shooting = true; powDrag = false; powFrac = 0; pullVis = 0; power = 0; ballInHand = false;
+  S.offX = 0; S.offY = 0; drawTip();
+  setMsg("Các bi đang lăn...", false);
+  updateHUD();
+}
+
+/* ============ RULES ============ */
+function evaluateShot() {
+  const info = shotInfo; shotInfo = null;
+  const p = players[current], o = players[1 - current];
+  const pk = info.pocketed;
+  const before = g => balls.filter(b => b.type === g && (b.active || pk.includes(b))).length;
+  const cueIn = pk.some(b => b.type === "cue");
+  const eightIn = pk.some(b => b.type === "eight");
+  const objIn = pk.filter(b => b.type === "solid" || b.type === "stripe");
+  const hit = info.firstHit, reasons = [];
+  let foul = false;
+
+  if (cueIn) { foul = true; reasons.push("bi trắng rơi lỗ"); }
+  if (!hit) { foul = true; reasons.push("không chạm bi nào"); }
+  else if (!p.group) { if (hit.type === "eight") { foul = true; reasons.push("chạm bi 8 trước"); } }
+  else if (hit.type === "eight") { if (before(p.group) > 0) { foul = true; reasons.push("chạm bi 8 khi chưa xong nhóm"); } }
+  else if (hit.type !== p.group) { foul = true; reasons.push("chạm sai nhóm bi"); }
+  if (!foul && !info.cushion && pk.length === 0) { foul = true; reasons.push("không bi nào chạm đệm hoặc rơi lỗ"); }
+
+  if (eightIn) {
+    const cleared = !!p.group && before(p.group) === 0;
+    if (!foul && cleared) endGame(current, `${p.name} đưa bi 8 vào lỗ đúng lúc. Chiến thắng!`);
+    else endGame(1 - current, `${p.name} phạm lỗi với bi 8 (${foul ? reasons.join(", ") : "chưa dọn xong nhóm"}).`);
+    return;
+  }
+
+  let assigned = false;
+  if (!foul && !p.group && objIn.length) {
+    p.group = objIn[0].type; o.group = p.group === "solid" ? "stripe" : "solid"; assigned = true;
+  }
+  const keep = !foul && !!p.group && objIn.some(b => b.type === p.group);
+
+  if (cueIn || foul) {
+    const c = cueB(); c.active = true; c.vx = c.vy = 0; c.wx = c.wy = c.wz = 0;
+    if (cueIn) { c.x = 280; c.y = 300; }
+  }
+  current = keep ? current : 1 - current;
+  ballInHand = foul;
+
+  const parts = [];
+  if (foul) parts.push("Phạm lỗi: " + reasons.join(", "));
+  if (assigned) parts.push(`${p.name} nhận ${labelGroup(p.group)}`);
+  if (!foul && keep) parts.push(`${p.name} được đánh tiếp`);
+  if (!foul && !keep && !assigned) parts.push("Không bi nào đúng nhóm");
+  parts.push("Lượt: " + players[current].name);
+  if (ballInHand) parts.push("chạm vào bàn để đặt bi trắng");
+  setMsg(parts.join(" · ")); turnT = TURN_TIME;
+  updateHUD();
+}
+
+function endGame(w, text) {
+  gameOver = true; shooting = false; powDrag = false;
+  $("overTitle").textContent = `${players[w].name} thắng!`;
+  $("overText").textContent = text;
+  show("over", true); updateHUD();
+}
+
+const ballIcon = n => `<i class="bi${n > 8 ? " st" : ""}" style="--c:${COLORS[n]}">${n}</i>`;
+function updateHUD() {
+  [0, 1].forEach(i => {
+    const p = players[i], el = $("pl" + i);
+    let t = p.name;
+    if (p.group) {
+      const ns = balls.filter(b => b.active && b.type === p.group).map(b => b.n).sort((a, b) => a - b);
+      if (balls.some(b => b.active && b.type === "eight")) ns.push(8);
+      t += " " + ns.map(ballIcon).join("");
+    } else t += " · chưa chọn bi";
+    el.className = "chip" + (current === i && !gameOver ? " on" : "");
+    el.innerHTML = t;
+  });
+}
+
+/* ============ GEOMETRY ============ */
+function validCuePos(x, y) {
+  if (x < FELT.x0 + R || x > FELT.x1 - R || y < FELT.y0 + R || y > FELT.y1 - R) return false;
+  if (POCKETS.some(q => Math.hypot(q.x - x, q.y - y) < PR + R)) return false;
+  return balls.every(b => !b.active || b === cueB() || Math.hypot(b.x - x, b.y - y) >= 2 * R + 0.5);
+}
+function raycast(px, py, dx, dy) {
+  let best = { t: Infinity, ball: null };
+  for (const b of balls) {
+    if (!b.active || b.type === "cue") continue;
+    const fx = px - b.x, fy = py - b.y, bb = fx * dx + fy * dy;
+    const cc = fx * fx + fy * fy - 4 * R * R, disc = bb * bb - cc;
+    if (disc < 0) continue;
+    const t = -bb - Math.sqrt(disc);
+    if (t > 0 && t < best.t) best = { t, ball: b };
+  }
+  const tx = dx > 0 ? (FELT.x1 - R - px) / dx : dx < 0 ? (FELT.x0 + R - px) / dx : Infinity;
+  const ty = dy > 0 ? (FELT.y1 - R - py) / dy : dy < 0 ? (FELT.y0 + R - py) / dy : Infinity;
+  best.wall = Math.min(tx, ty);
+  return best;
+}
+function segBlocked(x1, y1, x2, y2, skipA, skipB) {
+  const dx = x2 - x1, dy = y2 - y1, L2 = dx * dx + dy * dy;
+  if (L2 < 1) return false;
+  for (const b of balls) {
+    if (!b.active || b === skipA || b === skipB) continue;
+    const t = clamp(((b.x - x1) * dx + (b.y - y1) * dy) / L2, 0, 1);
+    const px = x1 + t * dx - b.x, py = y1 + t * dy - b.y;
+    if (px * px + py * py < (2 * R - 1) * (2 * R - 1)) return true;
+  }
+  return false;
+}
+
+/* ============ INPUT: table (rotate cue / place ball) ============ */
+const canHuman = () => !gameOver && !shooting && !uiOpen && !(mode === "bot" && current === 1);
+function toLogical(e, el = cv, w = W, h = H) {
+  const r = el.getBoundingClientRect();
+  return { x: (e.clientX - r.left) * w / r.width, y: (e.clientY - r.top) * h / r.height };
+}
+const angleToCue = m => { const c = cueB(); return Math.atan2(m.y - c.y, m.x - c.x); };
+const distToCue = m => { const c = cueB(); return Math.hypot(m.x - c.x, m.y - c.y); };
+const wrapPi = a => Math.atan2(Math.sin(a), Math.cos(a));
+
+let rotating = false, placing = false, lastAng = 0, tapInfo = null;
+
+// Tap the table or a ball: the cue turns to point there (snaps to a ball's centre if you tap on one).
+function moveCue(m) { if (validCuePos(m.x, m.y)) { cueB().x = m.x; cueB().y = m.y; } }
+function aimAtPoint(m) {
+  let tx = m.x, ty = m.y, best = 2 * R;
+  for (const b of balls) {
+    if (!b.active || b.type === "cue") continue;
+    const d = Math.hypot(b.x - m.x, b.y - m.y);
+    if (d < best) { best = d; tx = b.x; ty = b.y; }
+  }
+  const c = cueB();
+  if (Math.hypot(tx - c.x, ty - c.y) < R * 2) return;
+  aimTarget = Math.atan2(ty - c.y, tx - c.x);
+}
+
+cv.addEventListener("pointerdown", e => {
+  resumeAudio();
+  if (!canHuman()) return;
+  const m = toLogical(e); mouse = m;
+  try { cv.setPointerCapture(e.pointerId); } catch (_) {}
+  if (ballInHand) { placing = true; moveCue(m); return; }
+  rotating = true; lastAng = angleToCue(m);
+  tapInfo = { x: e.clientX, y: e.clientY, t: performance.now(), moved: 0, type: e.pointerType };
+  if (e.pointerType === "mouse" && distToCue(m) > R * 2) setAim(lastAng);
+});
+
+cv.addEventListener("pointermove", e => {
+  const m = toLogical(e); mouse = m;
+  if (tapInfo) tapInfo.moved = Math.max(tapInfo.moved, Math.hypot(e.clientX - tapInfo.x, e.clientY - tapInfo.y));
+  if (placing && canHuman()) { moveCue(m); return; }
+  if (!canHuman() || ballInHand) return;
+  if (e.pointerType === "mouse") {
+    if (distToCue(m) > R * 2) setAim(angleToCue(m));        // mouse: cue follows the pointer
+  } else if (rotating && distToCue(m) > R * 2) {            // touch: drag anywhere to rotate, no jumps
+    const a = angleToCue(m);
+    setAim(aimAng + wrapPi(a - lastAng) * S.aimSens);
+    lastAng = a;
+  }
+});
+
+function tableUp() {
+  if (placing) {
+    placing = false;
+    if (canHuman() && validCuePos(cueB().x, cueB().y)) {
+      ballInHand = false;
+      setMsg(players[current].name + " đã đặt bi trắng. Xoay cơ rồi kéo thanh LỰC.");
+      updateHUD();
+    }
+  }
+  else if (rotating && tapInfo && tapInfo.type !== "mouse" && tapInfo.moved < 10 &&
+           performance.now() - tapInfo.t < 450 && canHuman() && !ballInHand) {
+    aimAtPoint(mouse);
+  }
+  tapInfo = null; rotating = false;
+}
+cv.addEventListener("pointerup", tableUp);
+cv.addEventListener("pointercancel", () => { rotating = false; placing = false; });
+
+/* ============ INPUT: power slider (drag DOWN, release to shoot) ============ */
+const powTrack = $("powTrack");
+let powStartY = 0;
+powTrack.addEventListener("pointerdown", e => {
+  resumeAudio();
+  if (!canHuman()) return;
+  if (ballInHand) { setMsg("Đặt bi trắng lên bàn trước (chạm vào bàn)."); return; }
+  powDrag = true; powStartY = e.clientY; powFrac = 0; power = 0; pullVis = 0;
+  try { powTrack.setPointerCapture(e.pointerId); } catch (_) {}
+});
+powTrack.addEventListener("pointermove", e => {
+  if (!powDrag) return;
+  const knobH = 30, usable = Math.max(40, powTrack.getBoundingClientRect().height - knobH);
+  powFrac = clamp((e.clientY - powStartY) / usable, 0, 1);
+  // curved response: full power at ~80% of the travel, mid-pull is already strong
+  power = Math.min(1, Math.pow(powFrac, 0.75) * 1.2 * S.sens);
+  pullVis = power * PULL_FULL;
+});
+powTrack.addEventListener("pointerup", () => {
+  if (!powDrag) return;
+  powDrag = false;
+  const p = power;
+  if (p > 0.08 && canHuman()) shoot(p);
+  else { power = 0; pullVis = 0; powFrac = 0; }
+});
+powTrack.addEventListener("pointercancel", () => { powDrag = false; power = 0; pullVis = 0; powFrac = 0; });
+
+/* ============ INPUT: fine-aim bar (thanh can) ============ */
+const aimTrack = $("aimTrack"), aimThumb = $("aimThumb");
+let fineDrag = false, fineBase = 0, fineV0 = 0;
+const fineV = e => { const r = aimTrack.getBoundingClientRect(); return clamp(((e.clientY - r.top) / r.height - 0.5) * 2, -1, 1); };
+aimTrack.addEventListener("pointerdown", e => {
+  resumeAudio();
+  if (!canHuman() || ballInHand) return;
+  fineDrag = true; fineBase = aimAng; fineV0 = fineV(e);
+  try { aimTrack.setPointerCapture(e.pointerId); } catch (_) {}
+});
+aimTrack.addEventListener("pointermove", e => {
+  if (!fineDrag) return;
+  const v = fineV(e);
+  setAim(fineBase + (v - fineV0) * FINE_RANGE * S.aimSens);
+  aimThumb.style.top = (50 + v * 42) + "%";
+});
+const fineEnd = () => { fineDrag = false; aimThumb.style.top = "50%"; };
+aimTrack.addEventListener("pointerup", fineEnd);
+aimTrack.addEventListener("pointercancel", fineEnd);
+
+function nudgeHold(dir, btn) {
+  btn.addEventListener("pointerdown", e => {
+    if (!canHuman() || ballInHand) return;
+    let step = 0.0012;
+    const tick = () => { setAim(aimAng + dir * step); step = Math.min(0.012, step * 1.05); };
+    tick();
+    const id = setInterval(tick, 35);
+    const stop = () => { clearInterval(id); window.removeEventListener("pointerup", stop); window.removeEventListener("pointercancel", stop); };
+    window.addEventListener("pointerup", stop); window.addEventListener("pointercancel", stop);
+  });
+}
+nudgeHold(-1, $("aimL")); nudgeHold(1, $("aimR"));
+window.addEventListener("keydown", e => {
+  if (!canHuman() || ballInHand) return;
+  if (e.key === "ArrowLeft") setAim(aimAng - 0.003);
+  if (e.key === "ArrowRight") setAim(aimAng + 0.003);
+});
+
+/* ============ INPUT: spin widget ============ */
+const tipCv = $("tipCv"), tctx = tipCv.getContext("2d");
+let tipDrag = false;
+function setTipFromEvent(e) {
+  const m = toLogical(e, tipCv, 120, 120), rad = 54;
+  let ox = (m.x - 60) / rad, oy = -(m.y - 60) / rad;
+  const mag = Math.hypot(ox, oy);
+  if (mag > 0.5) { ox *= 0.5 / mag; oy *= 0.5 / mag; }
+  S.offX = ox; S.offY = oy; drawTip();
+}
+tipCv.addEventListener("pointerdown", e => { tipDrag = true; setTipFromEvent(e); try { tipCv.setPointerCapture(e.pointerId); } catch (_) {} });
+tipCv.addEventListener("pointermove", e => { if (tipDrag) setTipFromEvent(e); });
+tipCv.addEventListener("pointerup", () => tipDrag = false);
+tipCv.addEventListener("pointercancel", () => tipDrag = false);
+function drawTip() {
+  const c = tctx, cx = 60, cy = 60, rad = 54;
+  c.clearRect(0, 0, 120, 120);
+  c.beginPath(); c.arc(cx, cy, rad, 0, Math.PI * 2);
+  const g = c.createRadialGradient(cx - 16, cy - 18, 4, cx, cy, rad);
+  g.addColorStop(0, "#ffffff"); g.addColorStop(0.6, "#e7e4d6"); g.addColorStop(1, "#9c9887");
+  c.fillStyle = g; c.fill(); c.strokeStyle = "rgba(0,0,0,.4)"; c.lineWidth = 1; c.stroke();
+  c.setLineDash([3, 4]); c.strokeStyle = "rgba(0,0,0,.35)";
+  c.beginPath(); c.arc(cx, cy, rad * 0.5, 0, Math.PI * 2); c.stroke(); c.setLineDash([]);
+  c.strokeStyle = "rgba(0,0,0,.2)";
+  c.beginPath(); c.moveTo(cx - rad, cy); c.lineTo(cx + rad, cy); c.moveTo(cx, cy - rad); c.lineTo(cx, cy + rad); c.stroke();
+  c.beginPath(); c.arc(cx + S.offX * rad, cy - S.offY * rad, 6, 0, Math.PI * 2);
+  c.fillStyle = "#e11d2e"; c.fill(); c.strokeStyle = "#fff"; c.lineWidth = 1.5; c.stroke();
+  const sd = $("spinDot"); if (sd) { sd.style.left = (50 + S.offX * 90) + "%"; sd.style.top = (50 - S.offY * 90) + "%"; }
+}
+$("tipReset").onclick = () => { S.offX = 0; S.offY = 0; drawTip(); };
+
+/* ============ BOT ============ */
+const BOT_LV = {
+  easy:   { noise: 260, ang: 0.090, pw: 0.25, smart: 0 },
+  normal: { noise: 110, ang: 0.035, pw: 0.10, smart: 1 },
+  hard:   { noise: 12,  ang: 0.004, pw: 0.02, smart: 2 },
+  champ:  { noise: 0,   ang: 0,     pw: 0,    smart: 2 }
+};
+const botLv = () => BOT_LV[S.level] || BOT_LV.normal;
+const BOT_MAX = MAX_SPEED * BOT_SCALE;
+
+function legalTargets() {
+  const g = players[1].group;
+  if (!g) return balls.filter(b => b.active && (b.type === "solid" || b.type === "stripe"));
+  if (remainingOf(g) === 0) return balls.filter(b => b.active && b.type === "eight");
+  return balls.filter(b => b.active && b.type === g);
+}
+
+// Would the cue ball, after contact, roll into a pocket?
+function scratchRisk(px, py, dx, dy) {
+  let risk = 0;
+  for (const P of POCKETS) {
+    const fx = P.x - px, fy = P.y - py;
+    const along = fx * dx + fy * dy;
+    if (along <= 0 || along > 900) continue;
+    if (Math.abs(fx * dy - fy * dx) < PR * 0.9) risk += (900 - along) / 900;
+  }
+  return risk;
+}
+
+// Score the best pot (target ball -> pocket) available from a given cue position.
+// Uses ghost-ball geometry + cut-angle limit + blocked-path and scratch checks.
+function potFrom(cx, cy, noise) {
+  const c = cueB();
+  let best = null;
+  for (const t of legalTargets()) for (const P of POCKETS) {
+    const dx = P.x - t.x, dy = P.y - t.y, L = Math.hypot(dx, dy);
+    if (L < 1) continue;
+    const ux = dx / L, uy = dy / L;
+    const gx = t.x - ux * 2 * R, gy = t.y - uy * 2 * R;      // ghost ball
+    const ax = gx - cx, ay = gy - cy, cd = Math.hypot(ax, ay);
+    if (cd < R) continue;
+    const vx = ax / cd, vy = ay / cd;
+    const cut = vx * ux + vy * uy;                            // 1 = dead straight
+    if (cut < 0.25) continue;                                 // sharper than ~75 deg: not worth it
+    const cueBlocked = segBlocked(cx, cy, gx, gy, t, c);
+    const objBlocked = segBlocked(t.x, t.y, P.x, P.y, t, c);
+    const risk = scratchRisk(gx, gy, vx, vy);
+    let score = cd + L * 0.85 + (1 - cut) * 340 + risk * 900;
+    if (t.type === "eight") score += 150;
+    if (cueBlocked) score += 900;
+    if (objBlocked) score += 700;
+    if (noise) score += Math.random() * noise;
+    const cand = { score, gx, gy, cd, L, cut, t, clean: !cueBlocked && !objBlocked && risk < 0.45 };
+    if (!best || score < best.score) best = cand;
+  }
+  return best;
+}
+
+function planBotShot() {
+  const lv = botLv(), c = cueB();
+  const best = potFrom(c.x, c.y, lv.noise);
+  let takePot = false;
+  if (best) {
+    if (lv.smart === 0) takePot = true;
+    else if (best.clean) takePot = true;
+    else if (lv.smart === 1 && best.score < 620) takePot = true;
+  }
+  if (takePot) {
+    const ang = Math.atan2(best.gy - c.y, best.gx - c.x) + (Math.random() * 2 - 1) * lv.ang;
+    // speed the object ball needs: rolling friction + collision energy lost to the cut angle
+    const vNeed = (best.cd * 0.80 + best.L * 0.80 / Math.max(0.35, best.cut)) * 1.18 + 70;
+    let pw = clamp(vNeed / BOT_MAX, 0.22, 0.95);
+    pw *= 1 + (Math.random() * 2 - 1) * lv.pw;
+    return { ang, power: clamp(pw, 0.18, 1), pot: true };
+  }
+  // No clean pot: safety. Hit the nearest legal ball hard enough that a ball reaches a cushion.
+  let safe = null;
+  for (const t of legalTargets()) {
+    const d = Math.hypot(t.x - c.x, t.y - c.y);
+    if (d < 1) continue;
+    const blk = segBlocked(c.x, c.y, t.x, t.y, t, c);
+    const sc = d + (blk ? 3000 : 0);
+    if (!safe || sc < safe.sc) safe = { sc, t, d };
+  }
+  if (!safe) return { ang: aimAng, power: 0.5, pot: false };
+  const ang = Math.atan2(safe.t.y - c.y, safe.t.x - c.x) + (Math.random() * 2 - 1) * lv.ang;
+  return { ang, power: clamp(0.42 + safe.d / 2600, 0.34, 0.8), pot: false };
+}
+
+// Place the cue ball after a foul. Champion mode scans the whole table for the
+// position that leaves the easiest pot instead of trying a few fixed spots.
+function placeBotCue() {
+  const c = cueB();
+  const spots = [[280,300],[250,300],[280,250],[280,350],[230,300],[280,200],[280,400],[200,300]];
+  c.vx = c.vy = c.wx = c.wy = c.wz = 0;
+  if (S.level !== "champ") {
+    for (const [x, y] of spots) if (validCuePos(x, y)) { c.x = x; c.y = y; ballInHand = false; return true; }
+  }
+  let best = null;
+  const step = S.level === "champ" ? 34 : 30;
+  for (let x = FELT.x0 + R + 10; x <= FELT.x1 - R - 10; x += step) {
+    for (let y = FELT.y0 + R + 10; y <= FELT.y1 - R - 10; y += step) {
+      if (!validCuePos(x, y)) continue;
+      if (S.level !== "champ") { c.x = x; c.y = y; ballInHand = false; return true; }
+      const pb = potFrom(x, y, 0);
+      const sc = pb ? pb.score : 1e9;
+      if (!best || sc < best.sc) best = { x, y, sc };
+    }
+  }
+  if (best) { c.x = best.x; c.y = best.y; ballInHand = false; return true; }
+  return false;
+}
+
+function botUpdate(dt) {
+  if (mode !== "bot" || gameOver || shooting || current !== 1 || uiOpen) {
+    if (!shooting && !powDrag) pullVis = 0;
+    if (current !== 1 || gameOver) bot = null;
+    return;
+  }
+  const champ = S.level === "champ";
+  if (!bot) { bot = { phase: "think", t: champ ? 0.55 : 0.9 + Math.random() * 0.4 }; return; }
+  bot.t -= dt;
+  if (bot.phase === "think" && bot.t <= 0) {
+    if (ballInHand) placeBotCue();
+    bot.plan = planBotShot(); setAim(bot.plan.ang);
+    bot.phase = "aim"; bot.t = champ ? 0.45 : 0.7;
+  } else if (bot.phase === "aim") {
+    pullVis = bot.plan.power * PULL_FULL * Math.min(1, 1 - bot.t / 0.7);
+    if (bot.t <= 0) { const pw = clamp(bot.plan.power, 0.1, 1) * BOT_SCALE; bot = null; pullVis = 0; shoot(pw, 0, 0); }
+  }
+}
+
+/* ============ DRAWING: TABLE ============ */
+function rr(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+function drawTableRaw() {
+  const FW = FELT.x1 - FELT.x0, FH = FELT.y1 - FELT.y0, T = 24, TAU = Math.PI * 2;
+  ctx.save(); ctx.shadowColor = "rgba(0,0,0,.7)"; ctx.shadowBlur = 36; ctx.shadowOffsetY = 16;
+  rr(40, 40, 920, 520, 40); ctx.fillStyle = "#3a1a0c"; ctx.fill(); ctx.restore();
+  let g = ctx.createLinearGradient(0, 40, 0, 560);
+  g.addColorStop(0, "#9a5528"); g.addColorStop(0.5, "#5c2c12"); g.addColorStop(1, "#7a3c18");
+  rr(40, 40, 920, 520, 40); ctx.fillStyle = g; ctx.fill();
+  ctx.save(); rr(40, 40, 920, 520, 40); ctx.clip();
+  ctx.strokeStyle = "rgba(255,205,150,.08)"; ctx.lineWidth = 2;
+  for (let i = 0; i < 16; i++) { const y = 46 + i * 32; ctx.beginPath(); ctx.moveTo(40, y); ctx.bezierCurveTo(300, y + 8, 700, y - 8, 960, y); ctx.stroke(); }
+  ctx.restore();
+  g = ctx.createLinearGradient(40, 40, 960, 560);   // raised rail: lit top-left, dark bottom-right
+  g.addColorStop(0, "rgba(255,225,170,.75)"); g.addColorStop(0.5, "rgba(255,255,255,0)"); g.addColorStop(1, "rgba(0,0,0,.6)");
+  rr(43, 43, 914, 514, 38); ctx.strokeStyle = g; ctx.lineWidth = 5; ctx.stroke();
+  rr(40, 40, 920, 520, 40); ctx.strokeStyle = "#d4a13a"; ctx.lineWidth = 2; ctx.stroke();
+  // felt, sunk below the rails
+  g = ctx.createRadialGradient(500, 300, 40, 500, 300, 480);
+  g.addColorStop(0, "#2fd35f"); g.addColorStop(0.6, "#1aa84a"); g.addColorStop(1, "#0a6228");
+  ctx.fillStyle = g; ctx.fillRect(76, 76, 848, 448);
+  ctx.save(); ctx.beginPath(); ctx.rect(76, 76, 848, 448); ctx.clip();
+  for (let i = 0; i < 1600; i++) { ctx.fillStyle = i % 2 ? "rgba(255,255,255,.035)" : "rgba(0,0,0,.05)"; ctx.fillRect(76 + Math.random() * 848, 76 + Math.random() * 448, 1.3, 1.3); }
+  const sh = (x0, y0, x1, y1, rx, ry, rw, rh) => { const q = ctx.createLinearGradient(x0, y0, x1, y1); q.addColorStop(0, "rgba(0,0,0,.45)"); q.addColorStop(1, "rgba(0,0,0,0)"); ctx.fillStyle = q; ctx.fillRect(rx, ry, rw, rh); };
+  sh(0, 100, 0, 122, 100, 100, FW, 22); sh(0, 500, 0, 478, 100, 478, FW, 22);
+  sh(100, 0, 122, 0, 100, 100, 22, FH); sh(900, 0, 878, 0, 878, 100, 22, FH);
+  ctx.restore();
+  const cu = (x1, y1, x2, y2, nx, ny) => {            // cushion with a lit nose and a dark back
+    const L = Math.hypot(x2 - x1, y2 - y1), dx = (x2 - x1) / L, dy = (y2 - y1) / L, s = T * 0.8;
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+    ctx.lineTo(x2 + dx * s + nx * T, y2 + dy * s + ny * T); ctx.lineTo(x1 - dx * s + nx * T, y1 - dy * s + ny * T); ctx.closePath();
+    const q = ctx.createLinearGradient(x1, y1, x1 + nx * T, y1 + ny * T);
+    q.addColorStop(0, "#38d96e"); q.addColorStop(0.3, "#1d9f48"); q.addColorStop(1, "#0a5a24");
+    ctx.fillStyle = q; ctx.fill();
+    ctx.strokeStyle = "rgba(255,255,255,.4)"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  };
+  cu(150, 100, 466, 100, 0, -1); cu(534, 100, 850, 100, 0, -1); cu(150, 500, 466, 500, 0, 1); cu(534, 500, 850, 500, 0, 1);
+  cu(100, 150, 100, 450, -1, 0); cu(900, 150, 900, 450, 1, 0);
+  g = ctx.createLinearGradient(76, 76, 924, 524);   // inner lip of the rail
+  g.addColorStop(0, "rgba(0,0,0,.7)"); g.addColorStop(1, "rgba(255,225,170,.45)");
+  rr(75, 75, 850, 450, 8); ctx.strokeStyle = g; ctx.lineWidth = 3; ctx.stroke();
+  ctx.strokeStyle = "rgba(255,255,255,.12)"; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(280, 100); ctx.lineTo(280, 500); ctx.stroke();
+  ctx.fillStyle = "rgba(255,255,255,.2)"; ctx.beginPath(); ctx.arc(700, 300, 2.5, 0, TAU); ctx.fill();
+  const dd = [];
+  for (const x of [160, 240, 320, 400, 600, 680, 760, 840]) dd.push([x, 58], [x, 542]);
+  for (const y of [160, 220, 280, 340, 400, 460]) dd.push([58, y], [942, y]);
+  ctx.fillStyle = "#f6e7b4"; ctx.strokeStyle = "rgba(0,0,0,.5)"; ctx.lineWidth = 1;
+  for (const [x, y] of dd) { ctx.beginPath(); ctx.moveTo(x, y - 4.5); ctx.lineTo(x + 3, y); ctx.lineTo(x, y + 4.5); ctx.lineTo(x - 3, y); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+  for (const p of POCKETS) {                         // pockets: shadow, brass ring, deep hole
+    let q = ctx.createRadialGradient(p.x, p.y, PR, p.x, p.y, PR + 22);
+    q.addColorStop(0, "rgba(0,0,0,.55)"); q.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = q; ctx.beginPath(); ctx.arc(p.x, p.y, PR + 22, 0, TAU); ctx.fill();
+    q = ctx.createLinearGradient(p.x - PR, p.y - PR, p.x + PR, p.y + PR);
+    q.addColorStop(0, "#f4d57a"); q.addColorStop(0.5, "#b88a2e"); q.addColorStop(1, "#5e3e0e");
+    ctx.beginPath(); ctx.arc(p.x, p.y, PR + 8, 0, TAU); ctx.fillStyle = q; ctx.fill();
+    q = ctx.createRadialGradient(p.x - 5, p.y - 5, 3, p.x, p.y, PR + 1);
+    q.addColorStop(0, "#050505"); q.addColorStop(0.75, "#0b0b0b"); q.addColorStop(1, "#2a2a2a");
+    ctx.beginPath(); ctx.arc(p.x, p.y, PR + 1, 0, TAU); ctx.fillStyle = q; ctx.fill();
+    ctx.strokeStyle = "rgba(255,255,255,.2)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(p.x, p.y, PR + 1, 0.2, 1.3); ctx.stroke();
+  }
+  for (const [x, y] of [[40, 40], [960, 40], [40, 560], [960, 560]]) {
+    ctx.beginPath(); ctx.arc(x, y, 22, 0, TAU);
+    g = ctx.createRadialGradient(x - 5, y - 5, 2, x, y, 22);
+    g.addColorStop(0, "#f8e08e"); g.addColorStop(1, "#b07d20"); ctx.fillStyle = g; ctx.fill();
+  }
+}
+function getTableCache() {
+  if (tableCache) return tableCache;
+  tableCache = document.createElement("canvas");
+  tableCache.width = cv.width; tableCache.height = cv.height;
+  const main = ctx;
+  ctx = tableCache.getContext("2d");
+  ctx.setTransform(CS, 0, 0, CS, 0, 0);
+  drawTableRaw();
+  ctx = main;
+  return tableCache;
+}
+
+/* ============ DRAWING: BALLS ============ */
+const numCache = {};
+function numTex(n) {
+  if (numCache[n]) return numCache[n];
+  const c = document.createElement("canvas"); c.width = c.height = 64;
+  const g = c.getContext("2d");
+  g.fillStyle = "#fbfbf4"; g.beginPath(); g.arc(32, 32, 32, 0, Math.PI * 2); g.fill();
+  g.fillStyle = "#111"; g.font = "bold 36px system-ui, sans-serif";
+  g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(String(n), 32, 34);
+  return (numCache[n] = g.getImageData(0, 0, 64, 64));
+}
+function hexRGB(h) { const n = parseInt(h.slice(1), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; }
+
+function renderSprite(b) {
+  if (!b.spr) {
+    b.spr = document.createElement("canvas"); b.spr.width = b.spr.height = SPR;
+    b.sctx = b.spr.getContext("2d"); b.img = b.sctx.createImageData(SPR, SPR);
+  }
+  const d = b.img.data, M = b.R, half = SPR / 2;
+  const isCue = b.type === "cue", isStripe = b.type === "stripe";
+  const base = isCue ? [251, 251, 244] : hexRGB(COLORS[b.n]);
+  const tex = isCue ? null : numTex(b.n);
+  for (let py = 0; py < SPR; py++) for (let px = 0; px < SPR; px++) {
+    const u = (px + 0.5 - half) / half, v = (py + 0.5 - half) / half;
+    const r2 = u * u + v * v, idx = (py * SPR + px) * 4;
+    if (r2 > 1) { d[idx + 3] = 0; continue; }
+    const rad = Math.sqrt(r2), zc = Math.sqrt(1 - r2);
+    const bx = M[0] * u + M[3] * v + M[6] * zc;
+    const by = M[1] * u + M[4] * v + M[7] * zc;
+    const bz = M[2] * u + M[5] * v + M[8] * zc;
+    let cr = base[0], cg = base[1], cb = base[2];
+    if (isStripe) { cr = 251; cg = 251; cb = 244; if (Math.abs(by) < 0.5) { cr = base[0]; cg = base[1]; cb = base[2]; } }
+    if (tex && bz > CA) {
+      const tx = Math.min(63, Math.floor((bx / SIN_CA + 1) * 32)), ty = Math.min(63, Math.floor((by / SIN_CA + 1) * 32));
+      const ti = (ty * 64 + tx) * 4;
+      cr = tex.data[ti]; cg = tex.data[ti + 1]; cb = tex.data[ti + 2];
+    }
+    if (isCue && (Math.abs(bx) > 0.965 || Math.abs(by) > 0.965)) { cr = 205; cg = 40; cb = 45; }   // red dots show the cue ball's spin
+    const ndl = Math.max(0, u * LIGHT[0] + v * LIGHT[1] + zc * LIGHT[2]);
+    const shade = 0.42 + 0.7 * ndl;
+    const ndh = Math.max(0, u * HALFV[0] + v * HALFV[1] + zc * HALFV[2]);
+    const spec = Math.pow(ndh, 36) * 0.75 * 255;
+    d[idx] = cr * shade + spec; d[idx + 1] = cg * shade + spec; d[idx + 2] = cb * shade + spec;
+    d[idx + 3] = Math.min(1, (1 - rad) * half + 0.8) * 255;
+  }
+  b.sctx.putImageData(b.img, 0, 0);
+}
+function drawBalls() {
+  if (S.shadows) {
+    ctx.fillStyle = "rgba(0,0,0,.3)";
+    for (const b of balls) if (b.active) { ctx.fillStyle = "rgba(0,0,0,.18)"; ctx.beginPath(); ctx.ellipse(b.x + 4, b.y + 6, R * 1.2, R * 1.05, 0, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = "rgba(0,0,0,.35)"; ctx.beginPath(); ctx.ellipse(b.x + 2, b.y + 3, R * 0.95, R * 0.85, 0, 0, Math.PI * 2); ctx.fill(); }
+  }
+  for (const b of balls) {
+    if (!b.active) continue;
+    const moving = b.vx || b.vy || b.wx || b.wy || b.wz;
+    if (moving) { renderSprite(b); b.dirty = true; }
+    else if (b.dirty || !b.spr) { renderSprite(b); b.dirty = false; }
+    ctx.drawImage(b.spr, b.x - R, b.y - R, 2 * R, 2 * R);
+  }
+}
+
+/* ============ DRAWING: AIM ============ */
+function seg(x1, y1, x2, y2) { ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); }
+function drawAim() {
+  if (shooting || gameOver || ballInHand) return;
+  const c = cueB(), d = aimDir;
+  if (S.guide && canHuman()) {
+    const ray = raycast(c.x, c.y, d.x, d.y);
+    const hitBall = ray.ball && ray.t < ray.wall;
+    const endT = hitBall ? ray.t : Math.min(ray.wall, 1200);
+    const ex = c.x + d.x * endT, ey = c.y + d.y * endT;
+    ctx.save();
+    ctx.setLineDash([5, 6]); ctx.strokeStyle = "rgba(255,255,255,.6)"; ctx.lineWidth = 1.5;
+    seg(c.x + d.x * R, c.y + d.y * R, ex, ey);
+    ctx.setLineDash([]);
+    if (hitBall) {
+      const t = ray.ball;
+      ctx.beginPath(); ctx.arc(ex, ey, R, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(255,255,255,.8)"; ctx.lineWidth = 1.5; ctx.stroke();
+      let nx = t.x - ex, ny = t.y - ey; const nl = Math.hypot(nx, ny) || 1; nx /= nl; ny /= nl;
+      ctx.setLineDash([4, 5]); ctx.strokeStyle = "rgba(255,226,120,.9)";
+      seg(t.x, t.y, t.x + nx * 110, t.y + ny * 110);
+      ctx.setLineDash([]);
+      const dot = d.x * nx + d.y * ny, cx = d.x - dot * nx, cy = d.y - dot * ny, cl = Math.hypot(cx, cy);
+      if (cl > 0.05) { ctx.strokeStyle = "rgba(255,255,255,.5)"; seg(ex, ey, ex + cx / cl * 60, ey + cy / cl * 60); }
+    }
+    ctx.restore();
+  }
+  const tipDist = R + 5 + pullVis;
+  const tx = c.x - d.x * tipDist, ty = c.y - d.y * tipDist;
+  const len = 300, bx = tx - d.x * len, by = ty - d.y * len, nx = -d.y, ny = d.x;
+  ctx.save();
+  if (S.shadows) {
+    ctx.beginPath();
+    ctx.moveTo(tx + nx * 2 + 4, ty + ny * 2 + 6); ctx.lineTo(bx + nx * 5 + 4, by + ny * 5 + 6);
+    ctx.lineTo(bx - nx * 5 + 4, by - ny * 5 + 6); ctx.lineTo(tx - nx * 2 + 4, ty - ny * 2 + 6);
+    ctx.closePath(); ctx.fillStyle = "rgba(0,0,0,.35)"; ctx.fill();
+  }
+  const g = ctx.createLinearGradient(tx, ty, bx, by);
+  g.addColorStop(0, "#f0d28a"); g.addColorStop(0.08, "#d9a55a"); g.addColorStop(0.6, "#8a4a22"); g.addColorStop(1, "#3a1a0c");
+  ctx.beginPath();
+  ctx.moveTo(tx + nx * 2.2, ty + ny * 2.2); ctx.lineTo(bx + nx * 5, by + ny * 5);
+  ctx.lineTo(bx - nx * 5, by - ny * 5); ctx.lineTo(tx - nx * 2.2, ty - ny * 2.2);
+  ctx.closePath(); ctx.fillStyle = g; ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(tx + nx * 2.4, ty + ny * 2.4); ctx.lineTo(tx - d.x * 5 + nx * 2.4, ty - d.y * 5 + ny * 2.4);
+  ctx.lineTo(tx - d.x * 5 - nx * 2.4, ty - d.y * 5 - ny * 2.4); ctx.lineTo(tx - nx * 2.4, ty - ny * 2.4);
+  ctx.closePath(); ctx.fillStyle = "#7dd3fc"; ctx.fill();
+  ctx.restore();
+}
+function drawGhostCue() {
+  if (!ballInHand || gameOver || uiOpen || !canHuman()) return;
+  const c = cueB(), g = R + 7 + (0.5 + 0.5 * Math.sin(performance.now() / 220)) * 5;
+  ctx.fillStyle = "#fff"; ctx.strokeStyle = "rgba(0,0,0,.55)"; ctx.lineWidth = 1.2;
+  for (let i = 0; i < 4; i++) {
+    const a = i * Math.PI / 2, ux = Math.cos(a), uy = Math.sin(a);
+    ctx.beginPath();
+    ctx.moveTo(c.x + ux * (g + 11), c.y + uy * (g + 11));
+    ctx.lineTo(c.x + ux * g - uy * 6, c.y + uy * g + ux * 6);
+    ctx.lineTo(c.x + ux * g + uy * 6, c.y + uy * g - ux * 6);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+  }
+}
+function draw() {
+  ctx.setTransform(CS, 0, 0, CS, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+  ctx.drawImage(getTableCache(), 0, 0, W, H);
+  drawBalls(); drawAim(); drawGhostCue();
+}
+
+/* ============ LOOP ============ */
+function update(dt) {
+  if (aimTarget !== null) {
+    const diff = wrapPi(aimTarget - aimAng);
+    if (Math.abs(diff) < 0.0008) { setAimRaw(aimTarget); aimTarget = null; }
+    else setAimRaw(aimAng + diff * Math.min(1, dt * 16));
+  }
+  if (shooting) {
+    physicsStep(dt);
+    if (!anyMoving()) { shooting = false; evaluateShot(); }
+  }
+  botUpdate(dt);
+}
+function timeUp() {
+  const p = players[current];
+  powDrag = false; rotating = false; placing = false; pullVis = 0; power = 0; powFrac = 0;
+  current = 1 - current; ballInHand = true; turnT = TURN_TIME;
+  const c = cueB(); if (!validCuePos(c.x, c.y)) { placeBotCue(); ballInHand = true; }
+  setMsg(`${p.name} hết giờ bắn! Mất lượt và bị phạt: ${players[current].name} được đặt lại bi trắng.`);
+  updateHUD();
+}
+let lastClock = "";
+function tickTurn(dt) {
+  const botTurn = mode === "bot" && current === 1;
+  const modal = ["menu", "over", "setPanel", "gearMenu", "lvl"].some(id => !$(id).classList.contains("hidden"));
+  if (!gameOver && !shooting && !botTurn && !modal) { turnT -= dt; if (turnT <= 0) timeUp(); }
+  const txt = gameOver || shooting ? "" : botTurn ? "🤖" : "⏱ " + Math.max(0, Math.ceil(turnT));
+  if (txt !== lastClock) { lastClock = txt; const c = $("clock"); c.textContent = txt; c.classList.toggle("warn", !botTurn && !shooting && turnT <= 8); }
+}
+let lastF = -1, lastPct = -1;
+function updatePowerUI() {
+  const frac = powDrag ? powFrac : Math.min(1, pullVis / PULL_FULL);
+  const pct = Math.round((powDrag ? power : frac) * 100);
+  const f = Math.round(frac * 1000) / 1000;
+  if (f !== lastF) { lastF = f; powTrack.style.setProperty("--f", f); }
+  if (pct !== lastPct) { lastPct = pct; $("powPct").textContent = pct + "%"; }
+}
+let last = performance.now();
+function loop(t) {
+  const dt = Math.min(0.04, (t - last) / 1000); last = t;
+  uiOpen = ["menu", "over", "setPanel", "gearMenu", "lvl", "spinPanel"].some(id => !$(id).classList.contains("hidden"));
+  if (uiOpen) { powDrag = false; rotating = false; }
+  tickTurn(dt); update(dt); updatePowerUI(); draw();
+  requestAnimationFrame(loop);
+}
+
+/* ============ UI BINDINGS ============ */
+document.querySelectorAll("[data-mode]").forEach(b => b.addEventListener("click", () => {
+  resumeAudio();
+  if (b.dataset.mode === "bot") { show("menu", false); show("lvl", true); } else newGame("pvp");
+}));
+document.querySelectorAll("[data-lvl]").forEach(b => b.addEventListener("click", () => {
+  S.level = b.dataset.lvl; $("setLevel").value = S.level; show("lvl", false); newGame("bot");
+}));
+$("lvlBack").onclick = () => { show("lvl", false); show("menu", true); };
+$("gearBtn").onclick = () => show("gearMenu", true);
+$("gearMenu").addEventListener("click", e => { if (e.target === $("gearMenu") || e.target.closest("button")) show("gearMenu", false); });
+$("spinBtn").onclick = () => { drawTip(); show("spinPanel", true); };
+$("spinDone").onclick = () => show("spinPanel", false);
+$("spinPanel").addEventListener("click", e => { if (e.target === $("spinPanel")) show("spinPanel", false); });
+$("btnSet").onclick = () => show("setPanel", true);
+$("menuSet").onclick = () => show("setPanel", true);
+$("setClose").onclick = () => show("setPanel", false);
+$("btnRestart").onclick = () => newGame(mode);
+$("btnAgain").onclick = () => newGame(mode);
+$("btnMenu").onclick = () => { show("over", false); show("menu", true); };
+$("btnToMenu").onclick = () => { show("over", false); show("menu", true); };
+$("btnFs").onclick = () => {
+  try {
+    const el = document.documentElement;
+    if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+      const p = (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+      if (p && p.then) p.then(() => { try { screen.orientation.lock("landscape").catch(() => {}); } catch (_) {} }).catch(() => {});
+    } else (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+  } catch (_) {}
+};
+$("setSens").oninput = e => { S.sens = +e.target.value; $("vSens").textContent = S.sens.toFixed(1); };
+$("setAim").oninput = e => { S.aimSens = +e.target.value; $("vAim").textContent = S.aimSens.toFixed(1); };
+$("setFric").oninput = e => { S.friction = 0.982 + (+e.target.value) * 0.001; $("vFric").textContent = e.target.value; };
+$("setShadow").onchange = e => S.shadows = e.target.checked;
+$("setGuide").onchange = e => S.guide = e.target.checked;
+$("setSound").onchange = e => S.sound = e.target.checked;
+$("setLevel").onchange = e => { S.level = e.target.value; setModeLabel(); };
+
+// initial state: racked table behind the menu
+rack();
+players = [{ name: "Người 1", group: null }, { name: "Người 2", group: null }];
+setModeLabel(); updateHUD(); drawTip(); resize();
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
