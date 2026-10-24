@@ -704,7 +704,7 @@ const BOT_LV = {
   easy:   { noise: 260, ang: 0.090, pw: 0.25, sims: 0 },
   normal: { noise: 110, ang: 0.035, pw: 0.10, sims: 14 },
   hard:   { noise: 12,  ang: 0.004, pw: 0.02, sims: 36 },
-  champ:  { noise: 0,   ang: 0,     pw: 0,    sims: 84 }
+  champ:  { noise: 0,   ang: 0,     pw: 0,    sims: 140 }
 };
 const botLv = () => BOT_LV[S.level] || BOT_LV.normal;
 const BOT_MAX = MAX_SPEED * BOT_SCALE;
@@ -761,7 +761,7 @@ function scoreResult(res, meGroup, eightLegal) {
     if (n === 8) continue;
     if (!meGroup || grpOf(n) === meGroup) own++; else other++;
   }
-  sc += own * 1300 - other * 400;
+  sc += own * 4000 - other * 400;
   if (res.firstHit == null) { sc -= 5000; foul = true; }
   else {
     const fg = grpOf(res.firstHit);
@@ -883,7 +883,7 @@ function planBotShotSim() {
     const res = simulateShot(k.ang, k.pw, 0, 0, 7);
     let sc = scoreResult(res, meGroup, eightLegal);
     const nt = nextTargetsFrom(res.left, meGroup, eightLegal);
-    if (nt.length) sc += potValue(res.cue.x, res.cue.y, nt) * 750;
+    if (nt.length) sc += potValue(res.cue.x, res.cue.y, nt) * 350;
     if (!res.cueIn && meGroup) {
       const ot = res.left.filter(b => grpOf(b.n) !== meGroup && b.n !== 8);
       if (ot.length) sc -= potValue(res.cue.x, res.cue.y, ot) * 130;
@@ -893,13 +893,25 @@ function planBotShotSim() {
   }
   if (!best) return { ang: aimAng, power: 0.45, exact: true, spinX: 0, spinY: 0 };
   if (lv.sims >= 30) {
+    // do luc: thu nhieu muc luc cho cac ung vien vao lo tot nhat
+    const PW_LADDER = [0.34, 0.46, 0.58, 0.72, 0.88];
+    const DA_LADDER = [0, 0.0035, -0.0035];
+    for (const kk of list.filter(z => z.kind === "pot").slice(0, 3))
+      for (const pwv of PW_LADDER) for (const da of DA_LADDER) {
+        const r2 = simulateShot(kk.ang + da, pwv, 0, 0, 5.5);
+        let s2 = scoreResult(r2, meGroup, eightLegal);
+        const nt2 = nextTargetsFrom(r2.left, meGroup, eightLegal);
+        if (nt2.length) s2 += potValue(r2.cue.x, r2.cue.y, nt2) * 350;
+        if (lv.noise) s2 += (Math.random() * 2 - 1) * lv.noise;
+        if (s2 > best.sc) best = { sc: s2, k: { ang: kk.ang + da, pw: pwv, kind: "pot" }, res: r2, spin: [0, 0] };
+      }
     const spins = [[0, 0], [0, 0.3], [0, -0.3], [0.28, 0], [-0.28, 0]];
     const pws = [clamp(best.k.pw * 0.92, 0.12, 1), clamp(best.k.pw * 1.08, 0.12, 1)];
     for (const sp of spins) for (const pwv of pws) {
       const res = simulateShot(best.k.ang, pwv, sp[0], sp[1], 7);
       let sc = scoreResult(res, meGroup, eightLegal);
       const nt = nextTargetsFrom(res.left, meGroup, eightLegal);
-      if (nt.length) sc += potValue(res.cue.x, res.cue.y, nt) * 750;
+      if (nt.length) sc += potValue(res.cue.x, res.cue.y, nt) * 350;
       if (sc > best.sc) best = { sc, k: { ang: best.k.ang, pw: pwv, kind: best.k.kind }, res, spin: sp };
     }
   }
@@ -1091,18 +1103,20 @@ function drawTableRaw() {
   for (const y of [160, 220, 280, 340, 400, 460]) dd.push([58, y], [942, y]);
   ctx.fillStyle = "#f6e7b4"; ctx.strokeStyle = "rgba(0,0,0,.5)"; ctx.lineWidth = 1;
   for (const [x, y] of dd) { ctx.beginPath(); ctx.moveTo(x, y - 4.5); ctx.lineTo(x + 3, y); ctx.lineTo(x, y + 4.5); ctx.lineTo(x - 3, y); ctx.closePath(); ctx.fill(); ctx.stroke(); }
-  for (const p of POCKETS) {                         // pockets: no rim, sunken hole with a soft jaw shadow
-    let q = ctx.createRadialGradient(p.x, p.y, PR * 0.5, p.x, p.y, PR + 30);
-    q.addColorStop(0, "rgba(0,0,0,.9)"); q.addColorStop(0.55, "rgba(0,0,0,.5)"); q.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = q; ctx.beginPath(); ctx.arc(p.x, p.y, PR + 30, 0, TAU); ctx.fill();
-    q = ctx.createRadialGradient(p.x - 6, p.y - 6, 2, p.x, p.y, PR + 4);
-    q.addColorStop(0, "#000000"); q.addColorStop(0.72, "#050505"); q.addColorStop(1, "#171717");
-    ctx.beginPath(); ctx.arc(p.x, p.y, PR + 4, 0, TAU); ctx.fillStyle = q; ctx.fill();
+  for (const p of POCKETS) {                         // lo: ho khoet canh cung, khong quan mo
+    ctx.beginPath(); ctx.arc(p.x, p.y, PR + 2, 0, TAU);
+    ctx.fillStyle = "#040506"; ctx.fill();
+    ctx.save(); ctx.beginPath(); ctx.arc(p.x, p.y, PR + 2, 0, TAU); ctx.clip();
+    const q3 = ctx.createRadialGradient(p.x - 5, p.y - 6, 2, p.x, p.y, PR + 2);
+    q3.addColorStop(0, "#16191d"); q3.addColorStop(0.6, "#08090b"); q3.addColorStop(1, "#000000");
+    ctx.fillStyle = q3; ctx.fillRect(p.x - PR - 4, p.y - PR - 4, (PR + 4) * 2, (PR + 4) * 2);
+    ctx.restore();
+    ctx.beginPath(); ctx.arc(p.x, p.y, PR + 2, 0, TAU);
+    ctx.strokeStyle = "rgba(255,255,255,.13)"; ctx.lineWidth = 1.1; ctx.stroke();
   }
-  for (const [x, y] of [[40, 40], [960, 40], [40, 560], [960, 560]]) {   // goc ban: lo khoet toi, khong vien vang
-    const q2 = ctx.createRadialGradient(x, y, 2, x, y, 30);
-    q2.addColorStop(0, "#000000"); q2.addColorStop(0.72, "#050505"); q2.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.beginPath(); ctx.arc(x, y, 30, 0, TAU); ctx.fillStyle = q2; ctx.fill();
+  for (const [x, y] of [[40, 40], [960, 40], [40, 560], [960, 560]]) {   // goc ban: lo khoet canh cung
+    ctx.beginPath(); ctx.arc(x, y, 30, 0, TAU); ctx.fillStyle = "#040506"; ctx.fill();
+    ctx.strokeStyle = "rgba(255,255,255,.10)"; ctx.lineWidth = 1; ctx.stroke();
   }}
 function getTableCache() {
   if (tableCache) return tableCache;
