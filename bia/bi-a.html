@@ -145,6 +145,8 @@ canvas#cv{display:block;width:100%;height:100%;border-radius:12px;touch-action:n
           <div class="set-row"><span>Độ khó máy</span>
             <select id="setLevel"><option value="easy">Dễ</option><option value="normal" selected>Vừa</option><option value="hard">Khó</option><option value="champ">Vô địch</option></select>
           </div>
+          <div class="set-row"><span>Engine bot</span><select id="setEngine"><option value="js">JS (offline)</option><option value="py">Python (server)</option></select></div>
+          <p class="hint" style="font-size:11px">Python: chay <code>python3 server.py</code> roi mo http://localhost:8000/bi-a.html</p>
           <button class="big" id="setClose">Xong</button>
         </div>
       </div>
@@ -183,7 +185,7 @@ const LIGHT = (() => { const v = [-0.45, -0.55, 0.7], l = Math.hypot(...v); retu
 const HALFV = (() => { const v = [LIGHT[0], LIGHT[1], LIGHT[2] + 1], l = Math.hypot(...v); return v.map(x => x / l); })();
 const FINE_RANGE = 0.12;
 
-const S = { sens: 1, aimSens: 1, friction: 0.987, shadows: true, guide: true, sound: true, level: "normal", offX: 0, offY: 0 };
+const S = { sens: 1, aimSens: 1, friction: 0.987, shadows: true, guide: true, sound: true, level: "normal", engine: "js", offX: 0, offY: 0 };
 const kRoll = () => -Math.log(S.friction) * 60;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
@@ -207,6 +209,7 @@ window.addEventListener("resize", resize);
 /* ============ STATE ============ */
 let balls = [], players = [], current = 0, mode = "pvp";
 let ballInHand = false, shooting = false, gameOver = false, uiOpen = false;
+let cuePlaced = false, SIM = false;
 let shotInfo = null, aimAng = 0, aimDir = { x: 1, y: 0 }, mouse = { x: 500, y: 300 };
 let pullVis = 0, power = 0, powDrag = false, powFrac = 0;
 let bot = null;
@@ -231,7 +234,7 @@ function resumeAudio() {
   try { AC = AC || new (window.AudioContext || window.webkitAudioContext)(); if (AC.state === "suspended") AC.resume(); } catch (e) {}
 }
 function clack(v) {
-  if (!S.sound || !AC) return;
+  if (SIM || !S.sound || !AC) return;
   try {
     const o = AC.createOscillator(), g = AC.createGain();
     o.type = "triangle"; o.frequency.value = 700 + Math.random() * 500;
@@ -322,8 +325,30 @@ function rotate(b, h) {
 }
 
 /* ============ PHYSICS ============ */
+const MOUTH = 30;   // nua chieu rong mieng lo (do doc theo dem)
+function mouthOpen(b, wall) {
+  for (const p of POCKETS) {
+    if (wall === "left"   && p.x <= FELT.x0 + 25 && Math.abs(b.y - p.y) < MOUTH + R) return true;
+    if (wall === "right"  && p.x >= FELT.x1 - 25 && Math.abs(b.y - p.y) < MOUTH + R) return true;
+    if (wall === "top"    && p.y <= FELT.y0 + 25 && Math.abs(b.x - p.x) < MOUTH + R) return true;
+    if (wall === "bottom" && p.y >= FELT.y1 - 25 && Math.abs(b.x - p.x) < MOUTH + R) return true;
+  }
+  return false;
+}
+function inMouth(b) {
+  const outL = b.x < FELT.x0 + R, outR = b.x > FELT.x1 - R;
+  const outT = b.y < FELT.y0 + R, outB = b.y > FELT.y1 - R;
+  if (!(outL || outR || outT || outB)) return false;
+  for (const p of POCKETS) {
+    const nearX = Math.abs(b.x - p.x) < MOUTH + R;
+    const nearY = Math.abs(b.y - p.y) < MOUTH + R;
+    if ((outT || outB) && nearX) return true;
+    if ((outL || outR) && nearY) return true;
+  }
+  return false;
+}
 function physicsStep(dt) {
-  const SUB = 12, h = dt / SUB, cb = cueB();
+  const SUB = SIM ? 8 : 12, h = dt / SUB, cb = cueB();
   for (let s = 0; s < SUB; s++) {
     for (const b of balls) if (b.active) spinStep(b, h);
     for (const b of balls) if (b.active) { b.x += b.vx * h; b.y += b.vy * h; }
@@ -356,17 +381,23 @@ function physicsStep(dt) {
       if (!b.active) continue;
       let pocketed = false;
       for (const p of POCKETS) {
-        if (Math.hypot(b.x - p.x, b.y - p.y) < PR) {
-          b.active = false; b.vx = b.vy = 0; b.wx = b.wy = b.wz = 0; pocketed = true;
-          if (shotInfo) shotInfo.pocketed.push(b);
-          clack(0.12); break;
-        }
+        if (Math.hypot(b.x - p.x, b.y - p.y) < PR) { pocketed = true; break; }
       }
-      if (pocketed) continue;
-      if (b.x < FELT.x0 + R) { b.x = FELT.x0 + R; b.vx = Math.abs(b.vx) * CUSHION_E; cushion(); }
-      if (b.x > FELT.x1 - R) { b.x = FELT.x1 - R; b.vx = -Math.abs(b.vx) * CUSHION_E; cushion(); }
-      if (b.y < FELT.y0 + R) { b.y = FELT.y0 + R; b.vy = Math.abs(b.vy) * CUSHION_E; cushion(); }
-      if (b.y > FELT.y1 - R) { b.y = FELT.y1 - R; b.vy = -Math.abs(b.vy) * CUSHION_E; cushion(); }
+      if (!pocketed && inMouth(b)) pocketed = true;
+      if (pocketed) {
+        b.active = false; b.vx = b.vy = 0; b.wx = b.wy = b.wz = 0;
+        if (shotInfo) shotInfo.pocketed.push(b);
+        clack(0.12);
+        continue;
+      }
+      if (b.x < FELT.x0 + R && !mouthOpen(b, "left"))  { b.x = FELT.x0 + R; b.vx = Math.abs(b.vx) * CUSHION_E; cushion(); }
+      if (b.x > FELT.x1 - R && !mouthOpen(b, "right")) { b.x = FELT.x1 - R; b.vx = -Math.abs(b.vx) * CUSHION_E; cushion(); }
+      if (b.y < FELT.y0 + R && !mouthOpen(b, "top"))   { b.y = FELT.y0 + R; b.vy = Math.abs(b.vy) * CUSHION_E; cushion(); }
+      if (b.y > FELT.y1 - R && !mouthOpen(b, "bottom")){ b.y = FELT.y1 - R; b.vy = -Math.abs(b.vy) * CUSHION_E; cushion(); }
+      if (b.x < FELT.x0 - 55 || b.x > FELT.x1 + 55 || b.y < FELT.y0 - 55 || b.y > FELT.y1 + 55) {
+        b.active = false; b.vx = b.vy = 0; b.wx = b.wy = b.wz = 0;
+        if (shotInfo) shotInfo.pocketed.push(b);
+      }
     }
 
     // A ball is only at rest when BOTH its centre and its contact point are nearly still.
@@ -390,7 +421,7 @@ function shoot(pw, ox = S.offX, oy = S.offY) {
   c.wx = -2.5 * oy * sp * d.y / R;
   c.wy = 2.5 * oy * sp * d.x / R;
   shotInfo = { pocketed: [], firstHit: null, cushion: false };
-  shooting = true; powDrag = false; powFrac = 0; pullVis = 0; power = 0; ballInHand = false;
+  shooting = true; powDrag = false; powFrac = 0; pullVis = 0; power = 0; ballInHand = false; cuePlaced = false;
   S.offX = 0; S.offY = 0; drawTip();
   setMsg("Các bi đang lăn...", false);
   updateHUD();
@@ -433,7 +464,7 @@ function evaluateShot() {
     if (cueIn) { c.x = 280; c.y = 300; }
   }
   current = keep ? current : 1 - current;
-  ballInHand = foul;
+  ballInHand = foul; cuePlaced = false;
 
   const parts = [];
   if (foul) parts.push("Phạm lỗi: " + reasons.join(", "));
@@ -532,7 +563,9 @@ cv.addEventListener("pointerdown", e => {
   if (!canHuman()) return;
   const m = toLogical(e); mouse = m;
   try { cv.setPointerCapture(e.pointerId); } catch (_) {}
-  if (ballInHand) { placing = true; moveCue(m); return; }
+  if (ballInHand) {
+    if (!cuePlaced || Math.hypot(m.x - cueB().x, m.y - cueB().y) < R * 3.2) { placing = true; moveCue(m); return; }
+  }
   rotating = true; lastAng = angleToCue(m);
   tapInfo = { x: e.clientX, y: e.clientY, t: performance.now(), moved: 0, type: e.pointerType };
   if (e.pointerType === "mouse" && distToCue(m) > R * 2) setAim(lastAng);
@@ -542,7 +575,7 @@ cv.addEventListener("pointermove", e => {
   const m = toLogical(e); mouse = m;
   if (tapInfo) tapInfo.moved = Math.max(tapInfo.moved, Math.hypot(e.clientX - tapInfo.x, e.clientY - tapInfo.y));
   if (placing && canHuman()) { moveCue(m); return; }
-  if (!canHuman() || ballInHand) return;
+  if (!canHuman() || (ballInHand && !cuePlaced)) return;
   if (e.pointerType === "mouse") {
     if (distToCue(m) > R * 2) setAim(angleToCue(m));        // mouse: cue follows the pointer
   } else if (rotating && distToCue(m) > R * 2) {            // touch: drag anywhere to rotate, no jumps
@@ -556,8 +589,8 @@ function tableUp() {
   if (placing) {
     placing = false;
     if (canHuman() && validCuePos(cueB().x, cueB().y)) {
-      ballInHand = false;
-      setMsg(players[current].name + " đã đặt bi trắng. Xoay cơ rồi kéo thanh LỰC.");
+      cuePlaced = true;              // van giu ballInHand: tha tay van dat lai duoc
+      setMsg(players[current].name + " đã đặt bi trắng. Chạm bi trắng để đặt lại, hoặc kéo thanh LỰC để đánh.");
       updateHUD();
     }
   }
@@ -576,7 +609,7 @@ let powStartY = 0;
 powTrack.addEventListener("pointerdown", e => {
   resumeAudio();
   if (!canHuman()) return;
-  if (ballInHand) { setMsg("Đặt bi trắng lên bàn trước (chạm vào bàn)."); return; }
+  if (ballInHand && !cuePlaced) { setMsg("Đặt bi trắng lên bàn trước (chạm vào bàn)."); return; }
   powDrag = true; powStartY = e.clientY; powFrac = 0; power = 0; pullVis = 0;
   try { powTrack.setPointerCapture(e.pointerId); } catch (_) {}
 });
@@ -603,7 +636,7 @@ let fineDrag = false, fineBase = 0, fineV0 = 0;
 const fineV = e => { const r = aimTrack.getBoundingClientRect(); return clamp(((e.clientY - r.top) / r.height - 0.5) * 2, -1, 1); };
 aimTrack.addEventListener("pointerdown", e => {
   resumeAudio();
-  if (!canHuman() || ballInHand) return;
+  if (!canHuman() || (ballInHand && !cuePlaced)) return;
   fineDrag = true; fineBase = aimAng; fineV0 = fineV(e);
   try { aimTrack.setPointerCapture(e.pointerId); } catch (_) {}
 });
@@ -619,7 +652,7 @@ aimTrack.addEventListener("pointercancel", fineEnd);
 
 function nudgeHold(dir, btn) {
   btn.addEventListener("pointerdown", e => {
-    if (!canHuman() || ballInHand) return;
+    if (!canHuman() || (ballInHand && !cuePlaced)) return;
     let step = 0.0012;
     const tick = () => { setAim(aimAng + dir * step); step = Math.min(0.012, step * 1.05); };
     tick();
@@ -630,7 +663,7 @@ function nudgeHold(dir, btn) {
 }
 nudgeHold(-1, $("aimL")); nudgeHold(1, $("aimR"));
 window.addEventListener("keydown", e => {
-  if (!canHuman() || ballInHand) return;
+  if (!canHuman() || (ballInHand && !cuePlaced)) return;
   if (e.key === "ArrowLeft") setAim(aimAng - 0.003);
   if (e.key === "ArrowRight") setAim(aimAng + 0.003);
 });
@@ -668,115 +701,290 @@ $("tipReset").onclick = () => { S.offX = 0; S.offY = 0; drawTip(); };
 
 /* ============ BOT ============ */
 const BOT_LV = {
-  easy:   { noise: 260, ang: 0.090, pw: 0.25, smart: 0 },
-  normal: { noise: 110, ang: 0.035, pw: 0.10, smart: 1 },
-  hard:   { noise: 12,  ang: 0.004, pw: 0.02, smart: 2 },
-  champ:  { noise: 0,   ang: 0,     pw: 0,    smart: 2 }
+  easy:   { noise: 260, ang: 0.090, pw: 0.25, sims: 0 },
+  normal: { noise: 110, ang: 0.035, pw: 0.10, sims: 14 },
+  hard:   { noise: 12,  ang: 0.004, pw: 0.02, sims: 36 },
+  champ:  { noise: 0,   ang: 0,     pw: 0,    sims: 84 }
 };
 const botLv = () => BOT_LV[S.level] || BOT_LV.normal;
 const BOT_MAX = MAX_SPEED * BOT_SCALE;
+const PFULL = (typeof PULL_FULL === "number") ? PULL_FULL : 120;
+const grpOf = n => n === 8 ? "eight" : n < 8 ? "solid" : "stripe";
+const leftOf = g => balls.filter(b => b.active && b.type === g).length;
 
 function legalTargets() {
   const g = players[1].group;
   if (!g) return balls.filter(b => b.active && (b.type === "solid" || b.type === "stripe"));
-  if (remainingOf(g) === 0) return balls.filter(b => b.active && b.type === "eight");
+  if (leftOf(g) === 0) return balls.filter(b => b.active && b.type === "eight");
   return balls.filter(b => b.active && b.type === g);
 }
 
-// Would the cue ball, after contact, roll into a pocket?
-function scratchRisk(px, py, dx, dy) {
-  let risk = 0;
-  for (const P of POCKETS) {
-    const fx = P.x - px, fy = P.y - py;
-    const along = fx * dx + fy * dy;
-    if (along <= 0 || along > 900) continue;
-    if (Math.abs(fx * dy - fy * dx) < PR * 0.9) risk += (900 - along) / 900;
-  }
-  return risk;
+/* ---- full forward simulation on a cloned table, using the real physics ---- */
+function cloneBall(b) {
+  return { id: b.id, type: b.type, n: b.n, x: b.x, y: b.y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0,
+           R: b.R ? b.R.slice() : null, spr: null, sctx: null, img: null, dirty: true, active: b.active };
+}
+function simulateShot(ang, pw, ox, oy, maxT) {
+  const savedBalls = balls, savedInfo = shotInfo;
+  balls = balls.map(cloneBall);
+  const c = balls[0], sp = MAX_SPEED * pw, dx = Math.cos(ang), dy = Math.sin(ang);
+  c.vx = dx * sp; c.vy = dy * sp;
+  c.wz = -2.5 * ox * sp / R;
+  c.wx = -2.5 * oy * sp * dy / R;
+  c.wy = 2.5 * oy * sp * dx / R;
+  shotInfo = { pocketed: [], firstHit: null, cushion: false };
+  SIM = true;
+  let t = 0; const dt = 1 / 120;
+  while (t < maxT) { physicsStep(dt); t += dt; if (!anyMoving()) break; }
+  SIM = false;
+  const res = {
+    pocketed: shotInfo.pocketed.map(b => b.n),
+    firstHit: shotInfo.firstHit ? shotInfo.firstHit.n : null,
+    cushion: shotInfo.cushion,
+    cueIn: shotInfo.pocketed.some(b => b.type === "cue"),
+    cue: { x: c.x, y: c.y },
+    cueActive: c.active,
+    left: balls.filter(b => b.active).map(b => ({ n: b.n, type: b.type, x: b.x, y: b.y }))
+  };
+  balls = savedBalls; shotInfo = savedInfo;
+  return res;
 }
 
-// Score the best pot (target ball -> pocket) available from a given cue position.
-// Uses ghost-ball geometry + cut-angle limit + blocked-path and scratch checks.
-function potFrom(cx, cy, noise) {
-  const c = cueB();
-  let best = null;
-  for (const t of legalTargets()) for (const P of POCKETS) {
+function scoreResult(res, meGroup, eightLegal) {
+  let sc = 0, foul = false;
+  const pk = res.pocketed;
+  if (res.cueIn) { sc -= 7000; foul = true; }
+  const eightIn = pk.indexOf(8) >= 0;
+  if (eightIn) sc += (eightLegal && !res.cueIn) ? 30000 : -40000;
+  let own = 0, other = 0;
+  for (const n of pk) {
+    if (n === 8) continue;
+    if (!meGroup || grpOf(n) === meGroup) own++; else other++;
+  }
+  sc += own * 1300 - other * 400;
+  if (res.firstHit == null) { sc -= 5000; foul = true; }
+  else {
+    const fg = grpOf(res.firstHit);
+    if (!meGroup) { if (fg === "eight") { sc -= 5000; foul = true; } }
+    else if (fg === "eight") { if (!eightLegal) { sc -= 5000; foul = true; } }
+    else if (fg !== meGroup) { sc -= 5000; foul = true; }
+  }
+  if (!foul && !res.cushion && pk.length === 0) sc -= 3500;
+  return sc;
+}
+
+/* analytic value (0..1) of the best pot available from a cue position */
+function potValue(cx, cy, targets) {
+  let best = 0;
+  for (const t of targets) for (const P of POCKETS) {
     const dx = P.x - t.x, dy = P.y - t.y, L = Math.hypot(dx, dy);
     if (L < 1) continue;
-    const ux = dx / L, uy = dy / L;
-    const gx = t.x - ux * 2 * R, gy = t.y - uy * 2 * R;      // ghost ball
+    const ux = dx / L, uy = dy / L, gx = t.x - ux * 2 * R, gy = t.y - uy * 2 * R;
     const ax = gx - cx, ay = gy - cy, cd = Math.hypot(ax, ay);
     if (cd < R) continue;
-    const vx = ax / cd, vy = ay / cd;
-    const cut = vx * ux + vy * uy;                            // 1 = dead straight
-    if (cut < 0.25) continue;                                 // sharper than ~75 deg: not worth it
-    const cueBlocked = segBlocked(cx, cy, gx, gy, t, c);
-    const objBlocked = segBlocked(t.x, t.y, P.x, P.y, t, c);
-    const risk = scratchRisk(gx, gy, vx, vy);
-    let score = cd + L * 0.85 + (1 - cut) * 340 + risk * 900;
-    if (t.type === "eight") score += 150;
-    if (cueBlocked) score += 900;
-    if (objBlocked) score += 700;
-    if (noise) score += Math.random() * noise;
-    const cand = { score, gx, gy, cd, L, cut, t, clean: !cueBlocked && !objBlocked && risk < 0.45 };
-    if (!best || score < best.score) best = cand;
+    const cut = (ax / cd) * ux + (ay / cd) * uy;
+    if (cut < 0.15) continue;
+    if (segBlocked(cx, cy, gx, gy, t, null)) continue;
+    if (segBlocked(t.x, t.y, P.x, P.y, t, null)) continue;
+    const v = cut * (1 - Math.min(1, cd / 900)) * (1 - Math.min(1, L / 900)) * 0.85 + 0.15;
+    if (v > best) best = v;
   }
   return best;
 }
 
-function planBotShot() {
-  const lv = botLv(), c = cueB();
-  const best = potFrom(c.x, c.y, lv.noise);
-  let takePot = false;
-  if (best) {
-    if (lv.smart === 0) takePot = true;
-    else if (best.clean) takePot = true;
-    else if (lv.smart === 1 && best.score < 620) takePot = true;
+function shotCandidates(cx, cy, targets) {
+  const out = [];
+  for (const t of targets) for (const P of POCKETS) {
+    const dx = P.x - t.x, dy = P.y - t.y, L = Math.hypot(dx, dy);
+    if (L < 1) continue;
+    const ux = dx / L, uy = dy / L;
+    const gx = t.x - ux * 2 * R, gy = t.y - uy * 2 * R;
+    const ax = gx - cx, ay = gy - cy, cd = Math.hypot(ax, ay);
+    if (cd < R) continue;
+    const cut = (ax / cd) * ux + (ay / cd) * uy;
+    if (cut < 0.12) continue;
+    if (segBlocked(cx, cy, gx, gy, t, null)) continue;
+    if (segBlocked(t.x, t.y, P.x, P.y, t, null)) continue;
+    const ang = Math.atan2(ay, ax);
+    const vNeed = (cd * 0.8 + L * 0.8 / Math.max(0.35, cut)) * 1.18 + 70;
+    out.push({ ang, pw: clamp(vNeed / BOT_MAX, 0.16, 1), kind: "pot", t: t.n, cut });
   }
-  if (takePot) {
-    const ang = Math.atan2(best.gy - c.y, best.gx - c.x) + (Math.random() * 2 - 1) * lv.ang;
-    // speed the object ball needs: rolling friction + collision energy lost to the cut angle
-    const vNeed = (best.cd * 0.80 + best.L * 0.80 / Math.max(0.35, best.cut)) * 1.18 + 70;
-    let pw = clamp(vNeed / BOT_MAX, 0.22, 0.95);
-    pw *= 1 + (Math.random() * 2 - 1) * lv.pw;
-    return { ang, power: clamp(pw, 0.18, 1), pot: true };
-  }
-  // No clean pot: safety. Hit the nearest legal ball hard enough that a ball reaches a cushion.
-  let safe = null;
-  for (const t of legalTargets()) {
-    const d = Math.hypot(t.x - c.x, t.y - c.y);
-    if (d < 1) continue;
-    const blk = segBlocked(c.x, c.y, t.x, t.y, t, c);
-    const sc = d + (blk ? 3000 : 0);
-    if (!safe || sc < safe.sc) safe = { sc, t, d };
-  }
-  if (!safe) return { ang: aimAng, power: 0.5, pot: false };
-  const ang = Math.atan2(safe.t.y - c.y, safe.t.x - c.x) + (Math.random() * 2 - 1) * lv.ang;
-  return { ang, power: clamp(0.42 + safe.d / 2600, 0.34, 0.8), pot: false };
+  return out;
 }
 
-// Place the cue ball after a foul. Champion mode scans the whole table for the
-// position that leaves the easiest pot instead of trying a few fixed spots.
+function bankCandidates(cx, cy, targets) {
+  const out = [];
+  const rails = [
+    { v: FELT.x0 + R, axis: "x" },
+    { v: FELT.x1 - R, axis: "x" },
+    { v: FELT.y0 + R, axis: "y" },
+    { v: FELT.y1 - R, axis: "y" }
+  ];
+  for (const t of targets) for (const P of POCKETS) for (const rl of rails) {
+    let mx, my;
+    if (rl.axis === "x") { mx = 2 * rl.v - P.x; my = P.y; }
+    else { mx = P.x; my = 2 * rl.v - P.y; }
+    const dx = mx - t.x, dy = my - t.y, L = Math.hypot(dx, dy);
+    if (L < 1) continue;
+    const ux = dx / L, uy = dy / L;
+    const tt = rl.axis === "x" ? (rl.v - t.x) / ux : (rl.v - t.y) / uy;
+    if (!isFinite(tt) || tt <= 0 || tt > 900) continue;
+    const bx = t.x + ux * tt, by = t.y + uy * tt;
+    if (bx < FELT.x0 + R - 2 || bx > FELT.x1 - R + 2 || by < FELT.y0 + R - 2 || by > FELT.y1 - R + 2) continue;
+    if (segBlocked(t.x, t.y, bx, by, t, null)) continue;
+    if (segBlocked(bx, by, P.x, P.y, t, null)) continue;
+    const gx = t.x - ux * 2 * R, gy = t.y - uy * 2 * R;
+    const ax = gx - cx, ay = gy - cy, cd = Math.hypot(ax, ay);
+    if (cd < R) continue;
+    const cut = (ax / cd) * ux + (ay / cd) * uy;
+    if (cut < 0.2) continue;
+    if (segBlocked(cx, cy, gx, gy, t, null)) continue;
+    const ang = Math.atan2(ay, ax);
+    const total = cd + L * 1.12;
+    out.push({ ang, pw: clamp(total / BOT_MAX * 0.95 + 0.18, 0.22, 1), kind: "bank", t: t.n, cut });
+  }
+  return out;
+}
+
+function safetyCandidates(cx, cy, targets) {
+  const out = [];
+  for (const t of targets) {
+    const dx = t.x - cx, dy = t.y - cy, d = Math.hypot(dx, dy);
+    if (d < 1) continue;
+    const ang = Math.atan2(dy, dx);
+    out.push({ ang, pw: clamp(0.34 + d / 2400, 0.3, 0.8), kind: "safe", t: t.n });
+    out.push({ ang: ang + 0.05, pw: 0.55, kind: "safe", t: t.n });
+    out.push({ ang: ang - 0.05, pw: 0.55, kind: "safe", t: t.n });
+  }
+  return out;
+}
+
+function nextTargetsFrom(left, meGroup, eightLegal) {
+  if (!meGroup) return left.filter(b => b.n !== 8);
+  if (eightLegal) return left.filter(b => b.n === 8);
+  return left.filter(b => grpOf(b.n) === meGroup);
+}
+
+function planBotShotSim() {
+  const lv = botLv(), c = cueB();
+  const meGroup = players[1].group;
+  const eightLegal = !!meGroup && leftOf(meGroup) === 0;
+  const targets = legalTargets();
+  if (!targets.length) return { ang: aimAng, power: 0.45, exact: true, spinX: 0, spinY: 0 };
+  let cands = shotCandidates(c.x, c.y, targets);
+  cands = cands.concat(bankCandidates(c.x, c.y, targets));
+  cands = cands.concat(safetyCandidates(c.x, c.y, targets));
+  if (!cands.length) return { ang: aimAng, power: 0.45, exact: true, spinX: 0, spinY: 0 };
+  cands.forEach(k => { k.h = (k.kind === "pot" ? 0 : k.kind === "bank" ? 350 : 800) + k.pw * 100 + (1 - (k.cut || 0)) * 120; });
+  cands.sort((a, b) => a.h - b.h);
+  const list = cands.slice(0, Math.max(4, lv.sims));
+  let best = null;
+  for (const k of list) {
+    const res = simulateShot(k.ang, k.pw, 0, 0, 7);
+    let sc = scoreResult(res, meGroup, eightLegal);
+    const nt = nextTargetsFrom(res.left, meGroup, eightLegal);
+    if (nt.length) sc += potValue(res.cue.x, res.cue.y, nt) * 750;
+    if (!res.cueIn && meGroup) {
+      const ot = res.left.filter(b => grpOf(b.n) !== meGroup && b.n !== 8);
+      if (ot.length) sc -= potValue(res.cue.x, res.cue.y, ot) * 130;
+    }
+    if (lv.noise) sc += (Math.random() * 2 - 1) * lv.noise;
+    if (!best || sc > best.sc) best = { sc, k, res, spin: [0, 0] };
+  }
+  if (!best) return { ang: aimAng, power: 0.45, exact: true, spinX: 0, spinY: 0 };
+  if (lv.sims >= 30) {
+    const spins = [[0, 0], [0, 0.3], [0, -0.3], [0.28, 0], [-0.28, 0]];
+    const pws = [clamp(best.k.pw * 0.92, 0.12, 1), clamp(best.k.pw * 1.08, 0.12, 1)];
+    for (const sp of spins) for (const pwv of pws) {
+      const res = simulateShot(best.k.ang, pwv, sp[0], sp[1], 7);
+      let sc = scoreResult(res, meGroup, eightLegal);
+      const nt = nextTargetsFrom(res.left, meGroup, eightLegal);
+      if (nt.length) sc += potValue(res.cue.x, res.cue.y, nt) * 750;
+      if (sc > best.sc) best = { sc, k: { ang: best.k.ang, pw: pwv, kind: best.k.kind }, res, spin: sp };
+    }
+  }
+  const spin = best.spin || [0, 0];
+  const jitter = (Math.random() * 2 - 1) * lv.ang;
+  return { ang: best.k.ang + jitter, power: clamp(best.k.pw, 0.12, 1), exact: true,
+           spinX: spin[0], spinY: spin[1], score: Math.round(best.sc), kind: best.k.kind };
+}
+
+function planBotShotBasic(lv) {
+  const c = cueB(), targets = legalTargets();
+  if (!targets.length) return { ang: aimAng, power: 0.45 };
+  let best = null;
+  for (const t of targets) for (const P of POCKETS) {
+    const dx = P.x - t.x, dy = P.y - t.y, L = Math.hypot(dx, dy);
+    if (L < 1) continue;
+    const gx = t.x - dx / L * 2 * R, gy = t.y - dy / L * 2 * R;
+    const ax = gx - c.x, ay = gy - c.y, cd = Math.hypot(ax, ay);
+    if (cd < R) continue;
+    let sc = cd + L * 0.9 + (Math.random() * lv.noise);
+    if (segBlocked(c.x, c.y, gx, gy, t, null)) sc += 700;
+    if (segBlocked(t.x, t.y, P.x, P.y, t, null)) sc += 500;
+    if (!best || sc < best.sc) best = { sc, ax, ay, cd, L };
+  }
+  if (!best) return { ang: aimAng, power: 0.45 };
+  const ang = Math.atan2(best.ay, best.ax) + (Math.random() * 2 - 1) * lv.ang;
+  let pw = clamp((best.cd * 0.8 + best.L * 0.8) * 1.18 / MAX_SPEED, 0.18, 1);
+  pw *= 1 + (Math.random() * 2 - 1) * lv.pw;
+  return { ang, power: clamp(pw, 0.15, 1) };
+}
+
+function planBotShot() {
+  const lv = botLv();
+  if (lv.sims > 0) return planBotShotSim();
+  return planBotShotBasic(lv);
+}
+
+/* ---- ball in hand: scan the table, keep the position with the best pot ---- */
 function placeBotCue() {
   const c = cueB();
-  const spots = [[280,300],[250,300],[280,250],[280,350],[230,300],[280,200],[280,400],[200,300]];
   c.vx = c.vy = c.wx = c.wy = c.wz = 0;
+  const spots = [[280,300],[250,300],[280,250],[280,350],[230,300],[280,200],[280,400],[200,300]];
   if (S.level !== "champ") {
-    for (const [x, y] of spots) if (validCuePos(x, y)) { c.x = x; c.y = y; ballInHand = false; return true; }
+    for (const sp of spots) if (validCuePos(sp[0], sp[1])) { c.x = sp[0]; c.y = sp[1]; ballInHand = false; return true; }
   }
+  const targets = legalTargets();
   let best = null;
-  const step = S.level === "champ" ? 34 : 30;
-  for (let x = FELT.x0 + R + 10; x <= FELT.x1 - R - 10; x += step) {
-    for (let y = FELT.y0 + R + 10; y <= FELT.y1 - R - 10; y += step) {
+  for (let x = FELT.x0 + R + 14; x <= FELT.x1 - R - 14; x += 36) {
+    for (let y = FELT.y0 + R + 14; y <= FELT.y1 - R - 14; y += 36) {
       if (!validCuePos(x, y)) continue;
-      if (S.level !== "champ") { c.x = x; c.y = y; ballInHand = false; return true; }
-      const pb = potFrom(x, y, 0);
-      const sc = pb ? pb.score : 1e9;
-      if (!best || sc < best.sc) best = { x, y, sc };
+      const v = targets.length ? potValue(x, y, targets) : 0;
+      const sc = v - Math.hypot(x - 300, y - 300) / 5000;
+      if (!best || sc > best.sc) best = { x, y, sc };
     }
   }
   if (best) { c.x = best.x; c.y = best.y; ballInHand = false; return true; }
+  for (const sp of spots) if (validCuePos(sp[0], sp[1])) { c.x = sp[0]; c.y = sp[1]; ballInHand = false; return true; }
   return false;
+}
+
+/* ---- optional Python engine (python3 server.py) ---- */
+function pyUrl() {
+  if (location.protocol === "http:" || location.protocol === "https:") return "/api/shot";
+  return "http://127.0.0.1:8000/api/shot";
+}
+function requestPyShot() {
+  const body = {
+    balls: balls.filter(b => b.active).map(b => ({ n: b.n, type: b.type, x: b.x, y: b.y })),
+    pockets: POCKETS, R: R, PR: PR, felt: FELT,
+    group: players[1].group, friction: S.friction, maxSpeed: MAX_SPEED
+  };
+  const ctl = new AbortController();
+  const to = setTimeout(() => ctl.abort(), 20000);
+  return fetch(pyUrl(), {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body), signal: ctl.signal
+  }).then(r => {
+    clearTimeout(to);
+    if (!r.ok) throw new Error("py " + r.status);
+    return r.json();
+  }).then(j => {
+    if (!j || typeof j.ang !== "number") throw new Error("py bad");
+    return { ang: j.ang, power: clamp(j.power, 0.1, 1), exact: true,
+             spinX: j.spin ? j.spin.x : 0, spinY: j.spin ? j.spin.y : 0, py: true };
+  }).catch(e => { clearTimeout(to); throw e; });
 }
 
 function botUpdate(dt) {
@@ -786,15 +994,33 @@ function botUpdate(dt) {
     return;
   }
   const champ = S.level === "champ";
-  if (!bot) { bot = { phase: "think", t: champ ? 0.55 : 0.9 + Math.random() * 0.4 }; return; }
+  if (!bot) { bot = { phase: "think", t: champ ? 0.4 : 0.85 + Math.random() * 0.3 }; return; }
+  if (bot.phase === "remote") return;
   bot.t -= dt;
   if (bot.phase === "think" && bot.t <= 0) {
-    if (ballInHand) placeBotCue();
-    bot.plan = planBotShot(); setAim(bot.plan.ang);
-    bot.phase = "aim"; bot.t = champ ? 0.45 : 0.7;
+    if (ballInHand) { placeBotCue(); cuePlaced = true; }
+    if (champ && S.engine === "py") {
+      bot.phase = "remote";
+      requestPyShot().then(plan => {
+        if (!bot) return;
+        bot.plan = plan; setAim(plan.ang); bot.phase = "aim"; bot.t = 0.4;
+      }).catch(() => {
+        if (!bot) return;
+        bot.plan = planBotShot(); setAim(bot.plan.ang); bot.phase = "aim"; bot.t = 0.4;
+      });
+      return;
+    }
+    bot.plan = planBotShot();
+    setAim(bot.plan.ang);
+    bot.phase = "aim"; bot.t = champ ? 0.4 : 0.65;
   } else if (bot.phase === "aim") {
-    pullVis = bot.plan.power * PULL_FULL * Math.min(1, 1 - bot.t / 0.7);
-    if (bot.t <= 0) { const pw = clamp(bot.plan.power, 0.1, 1) * BOT_SCALE; bot = null; pullVis = 0; shoot(pw, 0, 0); }
+    pullVis = bot.plan.power * PFULL * Math.min(1, 1 - bot.t / 0.7);
+    if (bot.t <= 0) {
+      const pw = clamp(bot.plan.power, 0.1, 1);
+      const sx = bot.plan.spinX || 0, sy = bot.plan.spinY || 0;
+      bot = null; pullVis = 0;
+      shoot(pw, sx, sy);
+    }
   }
 }
 
@@ -841,6 +1067,19 @@ function drawTableRaw() {
   };
   cu(150, 100, 466, 100, 0, -1); cu(534, 100, 850, 100, 0, -1); cu(150, 500, 466, 500, 0, 1); cu(534, 500, 850, 500, 0, 1);
   cu(100, 150, 100, 450, -1, 0); cu(900, 150, 900, 450, 1, 0);
+  const bevel = (x, y, dx, dy) => {            // vat 45 do o mieng lo
+    ctx.beginPath(); ctx.moveTo(x, y);
+    ctx.lineTo(x + dx * 32, y + dy * 32);
+    ctx.lineTo(x + dx * 6 - dy * 21, y + dy * 6 + dx * 21);
+    ctx.closePath();
+    const bq = ctx.createLinearGradient(x, y, x + dx * 32, y + dy * 32);
+    bq.addColorStop(0, "#2fc45f"); bq.addColorStop(1, "#07401a");
+    ctx.fillStyle = bq; ctx.fill();
+    ctx.strokeStyle = "rgba(255,255,255,.28)"; ctx.lineWidth = 1.1; ctx.stroke();
+  };
+  bevel(150, 100, -1, 0); bevel(466, 100, 1, 0); bevel(534, 100, -1, 0); bevel(850, 100, 1, 0);
+  bevel(150, 500, -1, 0); bevel(466, 500, 1, 0); bevel(534, 500, -1, 0); bevel(850, 500, 1, 0);
+  bevel(100, 150, 0, -1); bevel(100, 450, 0, 1); bevel(900, 150, 0, -1); bevel(900, 450, 0, 1);
   g = ctx.createLinearGradient(76, 76, 924, 524);   // inner lip of the rail
   g.addColorStop(0, "rgba(0,0,0,.7)"); g.addColorStop(1, "rgba(255,225,170,.45)");
   rr(75, 75, 850, 450, 8); ctx.strokeStyle = g; ctx.lineWidth = 3; ctx.stroke();
@@ -852,24 +1091,19 @@ function drawTableRaw() {
   for (const y of [160, 220, 280, 340, 400, 460]) dd.push([58, y], [942, y]);
   ctx.fillStyle = "#f6e7b4"; ctx.strokeStyle = "rgba(0,0,0,.5)"; ctx.lineWidth = 1;
   for (const [x, y] of dd) { ctx.beginPath(); ctx.moveTo(x, y - 4.5); ctx.lineTo(x + 3, y); ctx.lineTo(x, y + 4.5); ctx.lineTo(x - 3, y); ctx.closePath(); ctx.fill(); ctx.stroke(); }
-  for (const p of POCKETS) {                         // pockets: shadow, brass ring, deep hole
-    let q = ctx.createRadialGradient(p.x, p.y, PR, p.x, p.y, PR + 22);
-    q.addColorStop(0, "rgba(0,0,0,.55)"); q.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = q; ctx.beginPath(); ctx.arc(p.x, p.y, PR + 22, 0, TAU); ctx.fill();
-    q = ctx.createLinearGradient(p.x - PR, p.y - PR, p.x + PR, p.y + PR);
-    q.addColorStop(0, "#f4d57a"); q.addColorStop(0.5, "#b88a2e"); q.addColorStop(1, "#5e3e0e");
-    ctx.beginPath(); ctx.arc(p.x, p.y, PR + 8, 0, TAU); ctx.fillStyle = q; ctx.fill();
-    q = ctx.createRadialGradient(p.x - 5, p.y - 5, 3, p.x, p.y, PR + 1);
-    q.addColorStop(0, "#050505"); q.addColorStop(0.75, "#0b0b0b"); q.addColorStop(1, "#2a2a2a");
-    ctx.beginPath(); ctx.arc(p.x, p.y, PR + 1, 0, TAU); ctx.fillStyle = q; ctx.fill();
-    ctx.strokeStyle = "rgba(255,255,255,.2)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(p.x, p.y, PR + 1, 0.2, 1.3); ctx.stroke();
+  for (const p of POCKETS) {                         // pockets: no rim, sunken hole with a soft jaw shadow
+    let q = ctx.createRadialGradient(p.x, p.y, PR * 0.5, p.x, p.y, PR + 30);
+    q.addColorStop(0, "rgba(0,0,0,.9)"); q.addColorStop(0.55, "rgba(0,0,0,.5)"); q.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = q; ctx.beginPath(); ctx.arc(p.x, p.y, PR + 30, 0, TAU); ctx.fill();
+    q = ctx.createRadialGradient(p.x - 6, p.y - 6, 2, p.x, p.y, PR + 4);
+    q.addColorStop(0, "#000000"); q.addColorStop(0.72, "#050505"); q.addColorStop(1, "#171717");
+    ctx.beginPath(); ctx.arc(p.x, p.y, PR + 4, 0, TAU); ctx.fillStyle = q; ctx.fill();
   }
-  for (const [x, y] of [[40, 40], [960, 40], [40, 560], [960, 560]]) {
-    ctx.beginPath(); ctx.arc(x, y, 22, 0, TAU);
-    g = ctx.createRadialGradient(x - 5, y - 5, 2, x, y, 22);
-    g.addColorStop(0, "#f8e08e"); g.addColorStop(1, "#b07d20"); ctx.fillStyle = g; ctx.fill();
-  }
-}
+  for (const [x, y] of [[40, 40], [960, 40], [40, 560], [960, 560]]) {   // goc ban: lo khoet toi, khong vien vang
+    const q2 = ctx.createRadialGradient(x, y, 2, x, y, 30);
+    q2.addColorStop(0, "#000000"); q2.addColorStop(0.72, "#050505"); q2.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.beginPath(); ctx.arc(x, y, 30, 0, TAU); ctx.fillStyle = q2; ctx.fill();
+  }}
 function getTableCache() {
   if (tableCache) return tableCache;
   tableCache = document.createElement("canvas");
@@ -946,7 +1180,7 @@ function drawBalls() {
 /* ============ DRAWING: AIM ============ */
 function seg(x1, y1, x2, y2) { ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); }
 function drawAim() {
-  if (shooting || gameOver || ballInHand) return;
+  if (shooting || gameOver || (ballInHand && !cuePlaced)) return;
   const c = cueB(), d = aimDir;
   if (S.guide && canHuman()) {
     const ray = raycast(c.x, c.y, d.x, d.y);
@@ -1028,7 +1262,7 @@ function update(dt) {
 function timeUp() {
   const p = players[current];
   powDrag = false; rotating = false; placing = false; pullVis = 0; power = 0; powFrac = 0;
-  current = 1 - current; ballInHand = true; turnT = TURN_TIME;
+  current = 1 - current; ballInHand = true; cuePlaced = false; turnT = TURN_TIME;
   const c = cueB(); if (!validCuePos(c.x, c.y)) { placeBotCue(); ballInHand = true; }
   setMsg(`${p.name} hết giờ bắn! Mất lượt và bị phạt: ${players[current].name} được đặt lại bi trắng.`);
   updateHUD();
@@ -1095,6 +1329,8 @@ $("setShadow").onchange = e => S.shadows = e.target.checked;
 $("setGuide").onchange = e => S.guide = e.target.checked;
 $("setSound").onchange = e => S.sound = e.target.checked;
 $("setLevel").onchange = e => { S.level = e.target.value; setModeLabel(); };
+$("setEngine").onchange = e => { S.engine = e.target.value; };
+$("setEngine").value = S.engine;
 
 // initial state: racked table behind the menu
 rack();
