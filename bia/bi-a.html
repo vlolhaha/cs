@@ -865,60 +865,79 @@ function nextTargetsFrom(left, meGroup, eightLegal) {
   return left.filter(b => grpOf(b.n) === meGroup);
 }
 
+function solvePot(W, T, P) {
+  const dx = P.x - T.x, dy = P.y - T.y, L = Math.hypot(dx, dy);
+  if (L < 1) return null;
+  const ux = dx / L, uy = dy / L;
+  const gx = T.x - ux * 2 * R, gy = T.y - uy * 2 * R;
+  const ax = gx - W.x, ay = gy - W.y, cd = Math.hypot(ax, ay);
+  if (cd < R * 1.05) return null;
+  const cut = (ax / cd) * ux + (ay / cd) * uy;
+  if (cut < 0.30) return null;
+  if (segBlocked(W.x, W.y, gx, gy, T, null)) return null;
+  if (segBlocked(T.x, T.y, P.x, P.y, T, null)) return null;
+  const vNeed = (cd + L / Math.max(0.45, cut)) * 1.06 + 60;
+  const pw = clamp(vNeed / BOT_MAX, 0.14, 1);
+  return { ang: Math.atan2(ay, ax), pw, cut, cd, L, gx, gy, P, t: T.n };
+}
+
 function planBotShotSim() {
   const lv = botLv(), c = cueB();
   const meGroup = players[1].group;
   const eightLegal = !!meGroup && leftOf(meGroup) === 0;
   const targets = legalTargets();
   if (!targets.length) return { ang: aimAng, power: 0.45, exact: true, spinX: 0, spinY: 0 };
-  let cands = shotCandidates(c.x, c.y, targets);
-  cands = cands.concat(bankCandidates(c.x, c.y, targets));
-  cands = cands.concat(safetyCandidates(c.x, c.y, targets));
-  if (!cands.length) return { ang: aimAng, power: 0.45, exact: true, spinX: 0, spinY: 0 };
-  cands.forEach(k => { k.h = (k.kind === "pot" ? 0 : k.kind === "bank" ? 350 : 800) + k.pw * 100 + (1 - (k.cut || 0)) * 120; });
-  cands.sort((a, b) => a.h - b.h);
-  const list = cands.slice(0, Math.max(4, lv.sims));
+
+  const pots = [];
+  for (const t of targets) for (const P of POCKETS) {
+    const q = solvePot(c, t, P);
+    if (q) pots.push(q);
+  }
+  pots.sort((a, b) => (b.cut - a.cut * 0.6) - (a.cut - b.cut * 0.6) || a.cd + a.L - (b.cd + b.L));
+
+  const top = pots.slice(0, lv.sims >= 30 ? 6 : 2);
   let best = null;
-  for (const k of list) {
-    const res = simulateShot(k.ang, k.pw, 0, 0, 7);
+  for (const q of top) {
+    const res = simulateShot(q.ang, q.pw, 0, 0, 7);
     let sc = scoreResult(res, meGroup, eightLegal);
     const nt = nextTargetsFrom(res.left, meGroup, eightLegal);
-    if (nt.length) sc += potValue(res.cue.x, res.cue.y, nt) * 350;
+    if (nt.length) sc += potValue(res.cue.x, res.cue.y, nt) * 420;
     if (!res.cueIn && meGroup) {
       const ot = res.left.filter(b => grpOf(b.n) !== meGroup && b.n !== 8);
       if (ot.length) sc -= potValue(res.cue.x, res.cue.y, ot) * 130;
     }
     if (lv.noise) sc += (Math.random() * 2 - 1) * lv.noise;
-    if (!best || sc > best.sc) best = { sc, k, res, spin: [0, 0] };
+    if (!best || sc > best.sc) best = { sc, ang: q.ang, pw: q.pw, spin: [0, 0], kind: "pot" };
+  }
+
+  if (!best) {
+    let cands = shotCandidates(c.x, c.y, targets);
+    cands = cands.concat(bankCandidates(c.x, c.y, targets));
+    cands = cands.concat(safetyCandidates(c.x, c.y, targets));
+    if (!cands.length) return { ang: aimAng, power: 0.45, exact: true, spinX: 0, spinY: 0 };
+    cands.sort((a, b) => (a.kind === "pot" ? 0 : a.kind === "bank" ? 350 : 800) - (b.kind === "pot" ? 0 : b.kind === "bank" ? 350 : 800));
+    for (const k of cands.slice(0, 4)) {
+      const res = simulateShot(k.ang, k.pw, 0, 0, 7);
+      const sc = scoreResult(res, meGroup, eightLegal);
+      if (!best || sc > best.sc) best = { sc, ang: k.ang, pw: k.pw, spin: [0, 0], kind: k.kind };
+    }
   }
   if (!best) return { ang: aimAng, power: 0.45, exact: true, spinX: 0, spinY: 0 };
+
   if (lv.sims >= 30) {
-    // do luc: thu nhieu muc luc cho cac ung vien vao lo tot nhat
-    const PW_LADDER = [0.34, 0.46, 0.58, 0.72, 0.88];
-    const DA_LADDER = [0, 0.0035, -0.0035];
-    for (const kk of list.filter(z => z.kind === "pot").slice(0, 3))
-      for (const pwv of PW_LADDER) for (const da of DA_LADDER) {
-        const r2 = simulateShot(kk.ang + da, pwv, 0, 0, 5.5);
-        let s2 = scoreResult(r2, meGroup, eightLegal);
-        const nt2 = nextTargetsFrom(r2.left, meGroup, eightLegal);
-        if (nt2.length) s2 += potValue(r2.cue.x, r2.cue.y, nt2) * 350;
-        if (lv.noise) s2 += (Math.random() * 2 - 1) * lv.noise;
-        if (s2 > best.sc) best = { sc: s2, k: { ang: kk.ang + da, pw: pwv, kind: "pot" }, res: r2, spin: [0, 0] };
-      }
     const spins = [[0, 0], [0, 0.3], [0, -0.3], [0.28, 0], [-0.28, 0]];
-    const pws = [clamp(best.k.pw * 0.92, 0.12, 1), clamp(best.k.pw * 1.08, 0.12, 1)];
-    for (const sp of spins) for (const pwv of pws) {
-      const res = simulateShot(best.k.ang, pwv, sp[0], sp[1], 7);
+    for (const sp of spins) {
+      const res = simulateShot(best.ang, best.pw, sp[0], sp[1], 7);
       let sc = scoreResult(res, meGroup, eightLegal);
       const nt = nextTargetsFrom(res.left, meGroup, eightLegal);
-      if (nt.length) sc += potValue(res.cue.x, res.cue.y, nt) * 350;
-      if (sc > best.sc) best = { sc, k: { ang: best.k.ang, pw: pwv, kind: best.k.kind }, res, spin: sp };
+      if (nt.length) sc += potValue(res.cue.x, res.cue.y, nt) * 420;
+      if (sc > best.sc) best = { sc, ang: best.ang, pw: best.pw, spin: sp, kind: best.kind };
     }
   }
   const spin = best.spin || [0, 0];
   const jitter = (Math.random() * 2 - 1) * lv.ang;
-  return { ang: best.k.ang + jitter, power: clamp(best.k.pw, 0.12, 1), exact: true,
-           spinX: spin[0], spinY: spin[1], score: Math.round(best.sc), kind: best.k.kind };
+  return { ang: best.ang + jitter, power: clamp(best.pw, 0.12, 1), exact: true,
+           spinX: spin[0], spinY: spin[1], score: Math.round(best.sc), kind: best.kind };
 }
 
 function planBotShotBasic(lv) {
